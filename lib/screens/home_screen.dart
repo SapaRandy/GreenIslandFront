@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'plant_detail_screen.dart';
 import 'add_plant_screen.dart';
 import '../widgets/plant_card.dart';
+import '../models/plant.dart';
+
 
 class HomeScreen extends StatelessWidget {
-  final List<Map<String, String>> plants = [
+  final List<Map<String, String>> plants = const [
     {"name": "Basilic", "humidity": "45%", "temp": "25°C"},
     {"name": "Aloe Vera", "humidity": "60%", "temp": "22°C"},
   ];
@@ -22,7 +24,7 @@ class HomeScreen extends StatelessWidget {
             plant: plants[index],
             onTap: () {
               Navigator.push(context, MaterialPageRoute(
-                builder: (_) => PlantDetailScreen(plant: plants[index]),
+                builder: (_) => PlantDetailScreen(plant: Plant.fromMap(plants[index])),
               ));
             },
           );
