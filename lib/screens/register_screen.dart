@@ -5,6 +5,8 @@ class RegisterScreen extends StatelessWidget {
   final passwordCtrl = TextEditingController();
   final confirmCtrl = TextEditingController();
 
+  RegisterScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

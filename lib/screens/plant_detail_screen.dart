@@ -4,7 +4,7 @@ import '../models/plant.dart';
 class PlantDetailScreen extends StatelessWidget {
   final Plant plant;
 
-  const PlantDetailScreen({Key? key, required this.plant}) : super(key: key);
+  const PlantDetailScreen({super.key, required this.plant});
 
   @override
   Widget build(BuildContext context) {
@@ -15,14 +15,13 @@ class PlantDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (plant.imageUrl != null)
-              Center(
-                child: Image.network(
-                  plant.imageUrl!,
-                  height: 200,
-                  fit: BoxFit.cover,
-                ),
+            Center(
+              child: Image.network(
+                plant.imageUrl!,
+                height: 200,
+                fit: BoxFit.cover,
               ),
+            ),
             const SizedBox(height: 20),
             Text(
               "Description",

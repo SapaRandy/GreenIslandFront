@@ -6,10 +6,12 @@ import '../models/plant.dart';
 
 
 class HomeScreen extends StatelessWidget {
-  final List<Map<String, String>> plants = [
+  final List<Map<String, String>> plants = const [
     {"name": "Basilic", "humidity": "45%", "temp": "25°C"},
     {"name": "Aloe Vera", "humidity": "60%", "temp": "22°C"},
   ];
+
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -4,7 +4,7 @@ class PlantCard extends StatelessWidget {
   final Map<String, String> plant;
   final VoidCallback onTap;
 
-  const PlantCard({required this.plant, required this.onTap});
+  const PlantCard({super.key, required this.plant, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
