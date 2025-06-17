@@ -21,8 +21,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.smartplant_app"
-        minSdk = flutter.minSdkVersion
+        applicationId = "com.company.smart_app"
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
