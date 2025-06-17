@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "234170188134",
+    "project_id": "greenisland-31c56",
+    "storage_bucket": "greenisland-31c56.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:234170188134:android:6e5acba8ada4c2c83d88a7",
+        "android_client_info": {
+          "package_name": "com.company.smart_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJZge8QYOX3YeF5S2Zcrmzo442JwCBaHU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
