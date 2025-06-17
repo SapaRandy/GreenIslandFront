@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'plant_detail_screen.dart';
 import 'add_plant_screen.dart';
-import 'package:smartplant_app/screens/sensor_screen.dart';
+import 'sensor_screen.dart';
 import 'profile_screen.dart';
 
 
