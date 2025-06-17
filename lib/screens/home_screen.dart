@@ -21,10 +21,14 @@ class HomeScreen extends StatelessWidget {
         itemCount: plants.length,
         itemBuilder: (context, index) {
           return PlantCard(
-            plant: plants[index],
+            plant: Plant.fromMap(plants[index]),
             onTap: () {
               Navigator.push(context, MaterialPageRoute(
-                builder: (_) => PlantDetailScreen(plant: Plant.fromMap(plants[index])),
+                builder: (_) => PlantDetailScreen(
+                  plantName: plants[index]['name'] ?? '',
+                  room: 'Salon', // à remplacer si tu as cette info ailleurs
+                  imageUrl: 'https://via.placeholder.com/150', // à personnaliser
+                ),
               ));
             },
           );
