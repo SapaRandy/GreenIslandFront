@@ -6,9 +6,10 @@ plugins {
 }
 
 android {
-    namespace = "com.example.smartplant_app"
+    namespace = "com.company.smart_app"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973"
+
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -20,8 +21,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.smartplant_app"
-        minSdk = flutter.minSdkVersion
+        applicationId = "com.company.smart_app"
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -36,28 +37,4 @@ android {
 
 flutter {
     source = "../.."
-}
-
-id("com.google.gms.google-services") version "4.4.2" apply false
-plugins {
-  id("com.android.application")
-
-  // Add the Google services Gradle plugin
-  id("com.google.gms.google-services")
-
-  ...
-}
-
-dependencies {
-  // Import the Firebase BoM
-  implementation(platform("com.google.firebase:firebase-bom:33.15.0"))
-
-
-  // TODO: Add the dependencies for Firebase products you want to use
-  // When using the BoM, don't specify versions in Firebase dependencies
-  implementation("com.google.firebase:firebase-analytics")
-
-
-  // Add the dependencies for any other desired Firebase products
-  // https://firebase.google.com/docs/android/setup#available-libraries
 }
