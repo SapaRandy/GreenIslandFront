@@ -5,6 +5,8 @@ import 'screens/home_screen.dart';
 void main() => runApp(PlantApp());
 
 class PlantApp extends StatelessWidget {
+  const PlantApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(

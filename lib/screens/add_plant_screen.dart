@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 class AddPlantScreen extends StatelessWidget {
   final nameCtrl = TextEditingController();
 
+  AddPlantScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

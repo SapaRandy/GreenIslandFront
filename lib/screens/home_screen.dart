@@ -9,6 +9,8 @@ class HomeScreen extends StatelessWidget {
     {"name": "Aloe Vera", "humidity": "60%", "temp": "22°C"},
   ];
 
+  const HomeScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
