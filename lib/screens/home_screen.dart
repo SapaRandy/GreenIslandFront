@@ -24,7 +24,7 @@ class HomeScreen extends StatelessWidget {
             plant: Plant.fromMap(plants[index]),
             onTap: () {
               Navigator.push(context, MaterialPageRoute(
-                builder: (_) => PlantDetailScreen(
+                builder: (context) => PlantDetailScreen(
                   plantName: plants[index]['name'] ?? '',
                   room: 'Salon', // à remplacer si tu as cette info ailleurs
                   imageUrl: 'https://via.placeholder.com/150', // à personnaliser
@@ -36,7 +36,7 @@ class HomeScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => AddPlantScreen()));
+          Navigator.push(context, MaterialPageRoute(builder: (context) => AddPlantScreen()));
         },
         child: Icon(Icons.add),
       ),
