@@ -1,10 +1,11 @@
 buildscript {
     repositories {
-        google()
+        google() // ✅ Ce bloc est obligatoire pour que Gradle trouve google-services
         mavenCentral()
     }
     dependencies {
-        classpath("com.google.gms:google-services:4.3.15")
+        classpath("com.android.tools.build:gradle:8.3.1")
+        classpath("com.google.gms:google-services:4.3.15") // ✅ Plugin Firebase
     }
 }
 
