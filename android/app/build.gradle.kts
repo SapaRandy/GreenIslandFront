@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.smartplant_app"
+    namespace = "com.company.smart_app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
 
@@ -21,8 +21,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.smartplant_app"
-        minSdk = flutter.minSdkVersion
+        applicationId = "com.company.smart_app"
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

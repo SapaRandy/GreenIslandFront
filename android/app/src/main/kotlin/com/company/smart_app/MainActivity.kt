@@ -1,4 +1,4 @@
-package com.example.smartplant_app
+package com.company.smart_app
 
 import io.flutter.embedding.android.FlutterActivity
 
