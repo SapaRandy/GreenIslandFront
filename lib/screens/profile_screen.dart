@@ -1,35 +1,53 @@
 import 'package:flutter/material.dart';
+import 'logout_button.dart';
 
 class ProfileScreen extends StatelessWidget {
-  final String userName;
-  final String userEmail;
-
-  const ProfileScreen({super.key, required this.userName, required this.userEmail});
+  const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Profil")),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Icon(Icons.account_circle, size: 100),
-            const SizedBox(height: 20),
-            Text(userName, style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 8),
-            Text(userEmail),
-            const Spacer(),
-            ElevatedButton.icon(
-              onPressed: () {
-                // TODO: Déconnexion
-              },
-              icon: Icon(Icons.logout),
-              label: Text("Se déconnecter"),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+      appBar: AppBar(
+        title: const Text("Profil utilisateur"),
+        backgroundColor: Colors.green,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const CircleAvatar(
+            radius: 50,
+            backgroundImage: NetworkImage(
+              'https://i.pravatar.cc/150?img=47',
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          const Center(
+            child: Text("Jean Dupont", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          ),
+          const Center(
+            child: Text("jean.dupont@email.com", style: TextStyle(color: Colors.grey)),
+          ),
+          const Divider(height: 40),
+          ListTile(
+            leading: const Icon(Icons.notifications),
+            title: const Text("Notifications"),
+            trailing: const Icon(Icons.arrow_forward_ios),
+            onTap: () {},
+          ),
+          ListTile(
+            leading: const Icon(Icons.water_drop),
+            title: const Text("Arrosage automatique"),
+            trailing: Switch(value: true, onChanged: (v) {}),
+          ),
+          ListTile(
+            leading: const Icon(Icons.help_outline),
+            title: const Text("Aide & FAQ"),
+            trailing: const Icon(Icons.arrow_forward_ios),
+            onTap: () {},
+          ),
+          // ✅ Remplacement par le composant réutilisable :
+          const LogoutButton(),
+        ],
       ),
     );
   }
