@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:smartplant_app/screens/login_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -18,26 +19,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _agreeToTerms = false;
 
   void _submitForm() async {
-  if (_formKey.currentState!.validate() && _agreeToTerms) {
-    try {
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-      // Rediriger vers l'accueil ou login
-      Navigator.pushReplacementNamed(context, '/login');
-    } on FirebaseAuthException catch (e) {
+    if (_formKey.currentState!.validate() && _agreeToTerms) {
+      try {
+        // Création de l'utilisateur avec FirebaseAuth
+        UserCredential userCredential = await FirebaseAuth.instance
+            .createUserWithEmailAndPassword(
+              email: _emailController.text.trim(),
+              password: _passwordController.text.trim(),
+            );
+
+        String uid = userCredential.user!.uid;
+
+        // Création du document utilisateur dans Firestore
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'fullName': _fullNameController.text.trim(),
+          'email': _emailController.text.trim(),
+          'createdAt': Timestamp.now(),
+          'isActive': true,
+        });
+
+        // Redirection vers l'écran de connexion
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+        );
+      } on FirebaseAuthException catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message ?? 'Erreur inconnue')));
+      }
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Erreur inconnue')),
+        const SnackBar(content: Text('Veuillez remplir tous les champs')),
       );
     }
-  } else {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Veuillez remplir tous les champs')),
-    );
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
@@ -133,9 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         children: [
                           const Text("Already have an account? "),
                           GestureDetector(
-                            onTap: () => Navigator.pop(
-                              context,
-                            ), // Navigate back to login
+                            onTap: () => Navigator.pop(context),
                             child: const Text(
                               "Sign in",
                               style: TextStyle(
@@ -157,3 +171,5 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
+// This code defines a registration screen for a Flutter app that allows users to create an account.
+// It includes fields for full name, email, password, and confirmation password,

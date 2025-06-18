@@ -1,37 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:smartplant_app/screens/register_screen.dart';
-import 'screens/login_screen.dart';
-import 'package:smartplant_app/screens/reset_password_screen.dart';
-// Make sure the class name in the import matches the actual class name in the file.
+import 'package:firebase_ai/firebase_ai.dart';
+import 'firebase_options.dart';
+
+import 'screens/welcome_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  runApp(const SmartPlantApp());
+
+  // Initialiser Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Tu peux appeler des fonctions comme celle-ci ailleurs dans l'appli,
+  // mais PAS dans main() si elles retournent du texte
+  // Sinon, déplace-les dans une méthode et appelle-les plus tard
+  generateGeminiContent();
+
+  runApp(const PlantApp());
 }
 
-class SmartPlantApp extends StatelessWidget {
-  const SmartPlantApp({super.key});
+// Fonction pour générer du contenu Gemini
+Future<void> generateGeminiContent() async {
+  final model =
+      FirebaseAI.googleAI().generativeModel(model: 'gemini-2.0-flash');
+
+  final prompt = [Content.text('Write a story about a magic backpack.')];
+
+  final response = await model.generateContent(prompt);
+  print(response.text);
+}
+
+class PlantApp extends StatelessWidget {
+  const PlantApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'SmartPlant',
       debugShowCheckedModeBanner: false,
-      title: 'Smart Plant',
-      theme: ThemeData(
-        primarySwatch: Colors.green,
-        useMaterial3: true,
-      ),
-      initialRoute: '/login',
-      routes: {
-        '/login': (context) => LoginScreen(),
-        // If the class is named differently (e.g., ResetPassword), update it accordingly:
-        // '/reset-password': (context) => const ResetPassword(),
-        // Make sure to use the correct class name as defined in reset_password_screen.dart
-        '/reset-password': (context) => const ResetPasswordScreen(),
-
-      },
+      theme: ThemeData(primarySwatch: Colors.green),
+      home: const WelcomeScreen(),
     );
   }
-} 
+}

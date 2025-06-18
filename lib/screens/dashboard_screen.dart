@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'plant_detail_screen.dart';
 import 'add_plant_screen.dart';
-import 'package:smartplant_app/screens/sensor_screen.dart';
+import 'sensor_screen.dart';
 import 'profile_screen.dart';
 
 
@@ -105,9 +105,12 @@ class DashboardScreen extends StatelessWidget {
             context,
             MaterialPageRoute(
               builder: (_) => PlantDetailScreen(
+                plantId: name.hashCode.toString(), // or provide a real plantId
                 plantName: name,
                 room: room,
                 imageUrl: imageUrl,
+                humidity: 50.toString(), // replace with actual humidity value if available
+                temp: 22.toString(), // replace with actual temperature value if available
               ),
             ),
           );
