@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'logout_button.dart';
+import 'devices_screen.dart'; 
+import 'sensor_screen.dart';
+
+// Variable globale pour l'état de l'arrosage automatique
+bool autoWateringEnabled = false; // au-dessus du build()
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -55,7 +60,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       userData!['photoUrl'] = _photoUrlController.text.trim();
     });
 
-    Navigator.of(context).pop(); // Close the dialog
+    Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Profil mis à jour avec succès')),
     );
@@ -140,18 +145,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const Divider(height: 40),
+
+                // ✅ Nouvelle carte : Appareils connectés
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.devices, color: Colors.teal),
+                    title: const Text("Appareils connectés"),
+                    trailing: const Icon(Icons.arrow_forward_ios),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const DevicesScreen()),
+                      );
+                    },
+                  ),
+                ),
+
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.notifications_active, color: Colors.green),
                     title: const Text("Notifications"),
                     trailing: const Icon(Icons.arrow_forward_ios),
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SensorsScreen()),
+                      );
+                    },
                   ),
                 ),
                 Card(
                   child: SwitchListTile(
-                    value: true,
-                    onChanged: (v) {},
+                    value: autoWateringEnabled,
+                    onChanged: (value) {
+                      setState(() {
+                        autoWateringEnabled = value;
+                      });
+                    },
                     title: const Text("Arrosage automatique"),
                     secondary: const Icon(Icons.water_drop, color: Colors.blue),
                   ),
@@ -171,5 +201,3 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
-// This code defines a ProfileScreen widget that allows users to view and edit their profile information.
-// It includes functionality to load user data from Firestore, update the profile, and display options like notifications and automatic watering.
