@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'plant_detail_screen.dart';
+import 'profile_screen.dart';
+
 import 'add_plant_screen.dart';
 import '../widgets/plant_card.dart';
 import '../models/plant.dart';
@@ -22,8 +24,12 @@ class HomeScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
-              // Rediriger vers paramètres
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ProfileScreen()),
+              );
             },
+
           ),
         ],
       ),

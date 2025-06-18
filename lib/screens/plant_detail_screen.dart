@@ -58,8 +58,104 @@ class PlantDetailScreen extends StatelessWidget {
   }
 
   void _editPlant(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Édition non encore implémentée.")),
+    final _formKey = GlobalKey<FormState>();
+    final nameController = TextEditingController(text: plantName);
+    final roomController = TextEditingController(text: room);
+    final humidityController = TextEditingController(text: humidity);
+    final tempController = TextEditingController(text: temp);
+    final imageUrlController = TextEditingController(text: imageUrl);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            left: 16,
+            right: 16,
+            top: 24,
+          ),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "Modifier la plante",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(labelText: 'Nom'),
+                    validator: (v) => v!.isEmpty ? "Nom requis" : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: roomController,
+                    decoration: const InputDecoration(labelText: 'Pièce'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: humidityController,
+                    decoration: const InputDecoration(
+                      labelText: 'Humidité (%)',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: tempController,
+                    decoration: const InputDecoration(
+                      labelText: 'Température (°C)',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: imageUrlController,
+                    decoration: const InputDecoration(labelText: 'Image URL'),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.save),
+                    label: const Text("Enregistrer"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                    ),
+                    onPressed: () async {
+                      if (!_formKey.currentState!.validate()) return;
+                      try {
+                        await FirebaseFirestore.instance
+                            .collection('plants')
+                            .doc(plantId)
+                            .update({
+                              'name': nameController.text.trim(),
+                              'room': roomController.text.trim(),
+                              'humidity': humidityController.text.trim(),
+                              'temp': tempController.text.trim(),
+                              'imageUrl': imageUrlController.text.trim(),
+                            });
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Modifications enregistrées."),
+                          ),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Erreur : ${e.toString()}")),
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
