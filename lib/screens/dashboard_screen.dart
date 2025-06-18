@@ -105,9 +105,12 @@ class DashboardScreen extends StatelessWidget {
             context,
             MaterialPageRoute(
               builder: (_) => PlantDetailScreen(
+                plantId: name.hashCode.toString(), // or provide a real plantId
                 plantName: name,
                 room: room,
                 imageUrl: imageUrl,
+                humidity: 50.toString(), // replace with actual humidity value if available
+                temp: 22.toString(), // replace with actual temperature value if available
               ),
             ),
           );
