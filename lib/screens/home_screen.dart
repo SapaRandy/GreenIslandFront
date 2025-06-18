@@ -74,7 +74,10 @@ class HomeScreen extends StatelessWidget {
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('plants')
-                  .where('userId', isEqualTo: userId)
+                  .where(
+                    'userId',
+                    isEqualTo: FirebaseAuth.instance.currentUser?.uid,
+                  )
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -99,7 +102,7 @@ class HomeScreen extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final data =
                         plantDocs[index].data() as Map<String, dynamic>;
-                    final plant = Plant.fromMap(data);
+                    final plant = Plant.fromMap(plantDocs[index].id, data);
 
                     return PlantCard(
                       plant: plant,
@@ -108,14 +111,16 @@ class HomeScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => PlantDetailScreen(
-                              plantId: plant.id, // <- à extraire dans le modèle ou passer manuellement
+                              plantId: plant
+                                  .id, // <- à extraire dans le modèle ou passer manuellement
                               plantName: plant.name,
                               room: plant.room ?? 'Inconnu',
-                              imageUrl: plant.imageUrl ?? 'https://via.placeholder.com/150',
+                              imageUrl:
+                                  plant.imageUrl ??
+                                  'https://via.placeholder.com/150',
                               humidity: plant.humidity ?? 'Inconnu',
                               temp: plant.temp ?? 'Inconnu',
                             ),
-
                           ),
                         );
                       },

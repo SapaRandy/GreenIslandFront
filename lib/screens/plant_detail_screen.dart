@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class PlantDetailScreen extends StatelessWidget {
   final String plantId;
@@ -27,7 +26,10 @@ class PlantDetailScreen extends StatelessWidget {
         title: const Text("Supprimer cette plante ?"),
         content: const Text("Cette action est irréversible."),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Annuler")),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Annuler"),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
@@ -39,24 +41,46 @@ class PlantDetailScreen extends StatelessWidget {
 
     if (confirm == true) {
       try {
-        await FirebaseFirestore.instance.collection('plants').doc(plantId).delete();
+        await FirebaseFirestore.instance
+            .collection('plants')
+            .doc(plantId)
+            .delete();
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Plante supprimée avec succès.")),
         );
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erreur : ${e.toString()}")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Erreur : ${e.toString()}")));
       }
     }
   }
 
   void _editPlant(BuildContext context) {
-    // TODO: Naviguer vers un écran d’édition avec les valeurs actuelles
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Édition non encore implémentée.")),
     );
+  }
+
+  Future<void> _addCareLog(BuildContext context, String action) async {
+    try {
+      final log = {'action': action, 'date': DateTime.now().toIso8601String()};
+
+      await FirebaseFirestore.instance.collection('plants').doc(plantId).update(
+        {
+          'careLogs': FieldValue.arrayUnion([log]),
+        },
+      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$action ajouté à l’historique')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur ajout soin : $e')));
+    }
   }
 
   @override
@@ -76,56 +100,108 @@ class PlantDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Image.network(
-            imageUrl,
-            height: 250,
-            fit: BoxFit.cover,
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
+      body: FutureBuilder<DocumentSnapshot>(
+        future: FirebaseFirestore.instance
+            .collection('plants')
+            .doc(plantId)
+            .get(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || !snapshot.data!.exists) {
+            return const Center(child: Text("Plante non trouvée"));
+          }
+
+          final data = snapshot.data!.data() as Map<String, dynamic>;
+          final latitude = data['latitude'];
+          final longitude = data['longitude'];
+          final careLogs = (data['careLogs'] ?? []) as List;
+
+          return SingleChildScrollView(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  plantName,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text("Pièce : $room", style: const TextStyle(fontSize: 16)),
-                const SizedBox(height: 8),
-                Text("Température actuelle : $temp", style: const TextStyle(fontSize: 16)),
-                const SizedBox(height: 8),
-                Text("Humidité : $humidity", style: const TextStyle(fontSize: 16)),
-                const SizedBox(height: 24),
-                const Text("Dernier arrosage : il y a 3 jours"),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.water_drop),
-                      label: const Text("Arroser"),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.eco),
-                      label: const Text("Fertiliser"),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                    ),
-                  ],
+                Image.network(imageUrl, height: 250, fit: BoxFit.cover),
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        plantName,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Pièce : $room",
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      Text(
+                        "Température : $temp°C",
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      Text(
+                        "Humidité : $humidity%",
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      const SizedBox(height: 12),
+                      if (latitude != null && longitude != null)
+                        Text(
+                          "📍 Localisation : $latitude, $longitude",
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      const SizedBox(height: 24),
+                      const Text(
+                        "Historique des soins :",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (careLogs.isEmpty)
+                        const Text("Aucun soin enregistré."),
+                      for (var log in careLogs)
+                        ListTile(
+                          leading: const Icon(Icons.history),
+                          title: Text(log['action'] ?? 'Action inconnue'),
+                          subtitle: Text((log['date'] ?? '').toString()),
+                        ),
+                      const SizedBox(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: () => _addCareLog(context, "Arrosage"),
+                            icon: const Icon(Icons.water_drop),
+                            label: const Text("Arroser"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: () =>
+                                _addCareLog(context, "Fertilisation"),
+                            icon: const Icon(Icons.eco),
+                            label: const Text("Fertiliser"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 }
-// This file defines the PlantDetailScreen widget, which displays detailed information about a specific plant.
-// It includes options to edit or delete the plant, and shows its image, name, room, humidity, and temperature.

@@ -28,6 +28,7 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  intl: ^0.18.1
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
@@ -37,6 +38,8 @@ dependencies:
   firebase_storage: ^12.0.0
   firebase_ai: ^2.1.0
   image_picker: ^1.1.2
+  firebase_ml_model_downloader: ^0.3.3+5
+  geolocator: ^14.0.1
 
 dev_dependencies:
   flutter_test:
