@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
@@ -57,21 +58,34 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   }
 
   Future<void> _submitPlant() async {
-    if (!_formKey.currentState!.validate()) return;
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text("Non connecté.")));
-      return;
-    }
+  if (!_formKey.currentState!.validate()) return;
 
-    final imageUrl = _imageUrlController.text.trim().isEmpty
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Non connecté.")));
+    return;
+  }
+
+  final imageUrl = _imageUrlController.text.trim().isEmpty
       ? 'https://source.unsplash.com/featured/?plant'
       : _imageUrlController.text.trim();
 
-    
-    try {
-      await FirebaseFirestore.instance.collection('plants').add({
+  // ✅ Obtenir la localisation actuelle
+  Position? position;
+  try {
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    position = await Geolocator.getCurrentPosition();
+  } catch (e) {
+    debugPrint("Erreur de géolocalisation : $e");
+  }
+
+  try {
+    await FirebaseFirestore.instance.collection('plants').add({
       'name': _nameController.text.trim(),
       'room': _roomController.text.trim(),
       'humidity': _humidityController.text.trim(),
@@ -79,17 +93,24 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       'imageUrl': imageUrl,
       'userId': uid,
       'createdAt': FieldValue.serverTimestamp(),
+      // ✅ Géolocalisation si disponible
+      if (position != null) ...{
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+      }
     });
+
     Navigator.pop(context);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Plante ajoutée !")),
     );
-    } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erreur : ${e.toString()}")),
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Erreur : ${e.toString()}")),
     );
-}
   }
+}
+
 
   @override
   Widget build(BuildContext ctx) {

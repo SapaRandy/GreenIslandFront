@@ -16,11 +16,7 @@ class WelcomeScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.local_florist,
-                size: 80,
-                color: Colors.green,
-              ),
+              const Icon(Icons.local_florist, size: 80, color: Colors.green),
               const SizedBox(height: 20),
               const Text(
                 'SmartPlant',
@@ -35,10 +31,7 @@ class WelcomeScreen extends StatelessWidget {
               const Text(
                 'Prenez soin de vos plantes avec un système d’arrosage intelligent.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.black87,
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.black87),
               ),
               const SizedBox(height: 40),
               ElevatedButton(
@@ -52,7 +45,9 @@ class WelcomeScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const LoginScreen(),
+                    ),
                   );
                 },
                 child: const Text(
@@ -73,7 +68,9 @@ class WelcomeScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const RegisterScreen(),
+                    ),
                   );
                 },
                 child: const Text(
@@ -82,10 +79,6 @@ class WelcomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 50),
-              Image.asset(
-                'assets/images/plant_welcome.png', // Assure-toi d’avoir ce fichier
-                height: 180,
-              ),
             ],
           ),
         ),

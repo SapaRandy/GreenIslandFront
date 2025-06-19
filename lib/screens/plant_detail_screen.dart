@@ -218,7 +218,14 @@ class PlantDetailScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Image.network(imageUrl, height: 250, fit: BoxFit.cover),
+                Image.network(
+                  imageUrl.isNotEmpty ? imageUrl : 'https://via.placeholder.com/150?text=Plante',
+                  height: 250,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const Icon(Icons.image_not_supported, size: 100, color: Colors.grey),
+                ),
+
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -246,9 +253,25 @@ class PlantDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       if (latitude != null && longitude != null)
-                        Text(
-                          "📍 Localisation : $latitude, $longitude",
-                          style: const TextStyle(fontSize: 16),
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on, color: Colors.red),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                "Localisation : ${latitude.toStringAsFixed(5)}, ${longitude.toStringAsFixed(5)}",
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        Row(
+                          children: const [
+                            Icon(Icons.location_off, color: Colors.grey),
+                            SizedBox(width: 6),
+                            Text("Localisation non disponible", style: TextStyle(fontSize: 16)),
+                          ],
                         ),
                       const SizedBox(height: 24),
                       const Text(
