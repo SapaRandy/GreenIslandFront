@@ -2,7 +2,7 @@ plugins {
     id("com.android.application")
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
-    id("com.google.gms.google-services") // ✅ plugin Firebase
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -11,14 +11,13 @@ android {
     ndkVersion = "27.0.12077973"
 
     compileOptions {
-        // ✅ Syntaxe correcte pour Kotlin DSL
-        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true  // ✅ Kotlin DSL syntax
     }
 
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
     defaultConfig {
@@ -36,11 +35,11 @@ android {
     }
 }
 
-dependencies {
-    // ✅ Syntaxe Kotlin DSL correcte pour ajouter une dépendance
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
-}
-
 flutter {
     source = "../.."
 }
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4") // ✅ Kotlin DSL syntax
+}
+
