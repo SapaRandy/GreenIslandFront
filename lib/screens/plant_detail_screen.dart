@@ -58,7 +58,7 @@ class PlantDetailScreen extends StatelessWidget {
   }
 
   void _editPlant(BuildContext context) {
-    final _formKey = GlobalKey<FormState>();
+    final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: plantName);
     final roomController = TextEditingController(text: room);
     final humidityController = TextEditingController(text: humidity);
@@ -77,7 +77,7 @@ class PlantDetailScreen extends StatelessWidget {
             top: 24,
           ),
           child: Form(
-            key: _formKey,
+            key: formKey,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -124,7 +124,7 @@ class PlantDetailScreen extends StatelessWidget {
                       backgroundColor: Colors.green,
                     ),
                     onPressed: () async {
-                      if (!_formKey.currentState!.validate()) return;
+                      if (!formKey.currentState!.validate()) return;
                       try {
                         await FirebaseFirestore.instance
                             .collection('plants')
