@@ -53,29 +53,33 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   }
 
   Future<void> _identifyPlantFromImage(File image) async {
-    try {
-      final bytes = await image.readAsBytes();
-      final response = await http.post(
-        Uri.parse('http://172.30.192.1/plantid/identify/'),
-        headers: {'Content-Type': 'application/octet-stream'},
-        body: bytes,
+  try {
+    final uri = Uri.parse('http://172.30.192.1/plantid/identify/');
+
+    final request = http.MultipartRequest('POST', uri)
+      ..files.add(await http.MultipartFile.fromPath('image', image.path)); // ← ici tu précises bien "image"
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final name = data['plantName'] as String;
+      _nameController.text = name;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Plante identifiée : $name')),
       );
-      if (response.statusCode == 200) {
-        final name = jsonDecode(response.body)['plantName'] as String;
-        _nameController.text = name;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Plante identifiée : $name')));
-      } else {
-        throw Exception('Status ${response.statusCode}');
-      }
-    } catch (e) {
-      debugPrint('Erreur identification IA externe : $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Échec de reconnaissance")));
+    } else {
+      throw Exception('Erreur serveur : ${response.statusCode}');
     }
+  } catch (e) {
+    debugPrint('Erreur identification IA externe : $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Échec de reconnaissance")),
+    );
   }
+}
+
 
   Future<void> _submitPlant() async {
     if (!_formKey.currentState!.validate()) return;
