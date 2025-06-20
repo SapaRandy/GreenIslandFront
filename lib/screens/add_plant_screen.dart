@@ -41,9 +41,15 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       final fileName =
           'plants/${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final ref = FirebaseStorage.instance.ref().child(fileName);
+      debugPrint('Tentative d\'upload sur $fileName');
 
-      final uploadTask = await ref.putFile(imageFile);
+      final uploadTask = await ref.putFile(
+        imageFile,
+      ); // ← point de fail probable
+      debugPrint('Upload terminé');
+
       final url = await uploadTask.ref.getDownloadURL();
+      debugPrint('URL de téléchargement : $url');
 
       return url;
     } catch (e) {
@@ -53,33 +59,34 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   }
 
   Future<void> _identifyPlantFromImage(File image) async {
-  try {
-    final uri = Uri.parse('http://172.30.192.1/plantid/identify/');
+    try {
+      final uri = Uri.parse('http://172.30.192.1/plantid/identify/');
 
-    final request = http.MultipartRequest('POST', uri)
-      ..files.add(await http.MultipartFile.fromPath('image', image.path)); // ← ici tu précises bien "image"
+      final request = http.MultipartRequest('POST', uri)
+        ..files.add(
+          await http.MultipartFile.fromPath('image', image.path),
+        ); // ← ici tu précises bien "image"
 
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final name = data['plantName'] as String;
-      _nameController.text = name;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Plante identifiée : $name')),
-      );
-    } else {
-      throw Exception('Erreur serveur : ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final name = data['plantName'] as String;
+        _nameController.text = name;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Plante identifiée : $name')));
+      } else {
+        throw Exception('Erreur serveur : ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Erreur identification IA externe : $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Échec de reconnaissance")));
     }
-  } catch (e) {
-    debugPrint('Erreur identification IA externe : $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Échec de reconnaissance")),
-    );
   }
-}
-
 
   Future<void> _submitPlant() async {
     if (!_formKey.currentState!.validate()) return;
