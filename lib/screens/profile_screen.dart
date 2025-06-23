@@ -52,9 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'photoUrl': imageUrl,
     });
 
-    setState(() {
-      userData!['photoUrl'] = imageUrl;
-    });
+    await _loadUserData(); // recharge les données
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text("Photo de profil mise à jour.")),
@@ -75,7 +73,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() {
         userData = data;
         _nameController.text = data['fullName'] ?? '';
-        _photoUrlController.text = data['photoUrl'] ?? '';
+        // _photoUrlController.text = data['photoUrl'] ?? '';
         isLoading = false;
       });
     }
@@ -173,7 +171,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: _pickAndUploadImage,
                   child: CircleAvatar(
                     radius: 50,
-                    backgroundImage: NetworkImage(avatarUrl),
+                    backgroundImage: NetworkImage('$avatarUrl?${DateTime.now().millisecondsSinceEpoch}'),
                     child: Align(
                       alignment: Alignment.bottomRight,
                       child: CircleAvatar(

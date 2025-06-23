@@ -1,10 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class PlantDetailScreen extends StatelessWidget {
   final String plantId;
   final String plantName;
-  final String room;
+  final String dist;
   final String imageUrl;
   final String humidity;
   final String temp;
@@ -13,7 +14,7 @@ class PlantDetailScreen extends StatelessWidget {
     super.key,
     required this.plantId,
     required this.plantName,
-    required this.room,
+    required this.dist,
     required this.imageUrl,
     required this.humidity,
     required this.temp,
@@ -60,7 +61,7 @@ class PlantDetailScreen extends StatelessWidget {
   void _editPlant(BuildContext context) {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: plantName);
-    final roomController = TextEditingController(text: room);
+    final roomController = TextEditingController(text: dist);
     final humidityController = TextEditingController(text: humidity);
     final tempController = TextEditingController(text: temp);
     final imageUrlController = TextEditingController(text: imageUrl);
@@ -95,7 +96,7 @@ class PlantDetailScreen extends StatelessWidget {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: roomController,
-                    decoration: const InputDecoration(labelText: 'Pièce'),
+                    decoration: const InputDecoration(labelText: 'Niveau eau'),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -131,7 +132,7 @@ class PlantDetailScreen extends StatelessWidget {
                             .doc(plantId)
                             .update({
                               'name': nameController.text.trim(),
-                              'room': roomController.text.trim(),
+                              'dsit': roomController.text.trim(),
                               'humidity': humidityController.text.trim(),
                               'temp': tempController.text.trim(),
                               'imageUrl': imageUrlController.text.trim(),
@@ -219,11 +220,16 @@ class PlantDetailScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Image.network(
-                  imageUrl.isNotEmpty ? imageUrl : 'https://via.placeholder.com/150?text=Plante',
+                  imageUrl.isNotEmpty
+                      ? imageUrl
+                      : 'https://via.placeholder.com/150?text=Plante',
                   height: 250,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) =>
-                      const Icon(Icons.image_not_supported, size: 100, color: Colors.grey),
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.image_not_supported,
+                    size: 100,
+                    color: Colors.grey,
+                  ),
                 ),
 
                 Padding(
@@ -240,7 +246,7 @@ class PlantDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        "Pièce : $room",
+                        "Niveau eau : $dist",
                         style: const TextStyle(fontSize: 16),
                       ),
                       Text(
@@ -253,24 +259,33 @@ class PlantDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       if (latitude != null && longitude != null)
-                        Row(
-                          children: [
-                            const Icon(Icons.location_on, color: Colors.red),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                "Localisation : ${latitude.toStringAsFixed(5)}, ${longitude.toStringAsFixed(5)}",
-                                style: const TextStyle(fontSize: 16),
-                              ),
+                        SizedBox(
+                          height: 200,
+                          child: GoogleMap(
+                            initialCameraPosition: CameraPosition(
+                              target: LatLng(latitude, longitude),
+                              zoom: 16,
                             ),
-                          ],
+                            markers: {
+                              Marker(
+                                markerId: MarkerId('plant_location'),
+                                position: LatLng(latitude, longitude),
+                                infoWindow: InfoWindow(title: plantName),
+                              ),
+                            },
+                            myLocationEnabled: false,
+                            zoomControlsEnabled: false,
+                          ),
                         )
                       else
                         Row(
                           children: const [
                             Icon(Icons.location_off, color: Colors.grey),
                             SizedBox(width: 6),
-                            Text("Localisation non disponible", style: TextStyle(fontSize: 16)),
+                            Text(
+                              "Localisation non disponible",
+                              style: TextStyle(fontSize: 16),
+                            ),
                           ],
                         ),
                       const SizedBox(height: 24),

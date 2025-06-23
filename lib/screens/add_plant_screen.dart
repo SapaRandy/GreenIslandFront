@@ -8,7 +8,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 
-
 class AddPlantScreen extends StatefulWidget {
   const AddPlantScreen({super.key});
   @override
@@ -25,124 +24,130 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
 
   File? _pickedImage;
 
-Future<void> _pickImage() async {
-  // // Demande la permission de stockage (Android)
-  // if (Platform.isAndroid) {
-  //   final status = await Permission.storage.request();
-//   if (!status.isGranted) {
-  //     debugPrint("Permission stockage refusée");
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(content: Text("Permission stockage refusée.")),
-  //     );
-  //     return;
-  //   }
-  // }
+  Future<void> _pickImage() async {
+    // // Demande la permission de stockage (Android)
+    // if (Platform.isAndroid) {
+    //   final status = await Permission.storage.request();
+    //   if (!status.isGranted) {
+    //     debugPrint("Permission stockage refusée");
+    //     ScaffoldMessenger.of(context).showSnackBar(
+    //       const SnackBar(content: Text("Permission stockage refusée.")),
+    //     );
+    //     return;
+    //   }
+    // }
 
-  final pf = await ImagePicker().pickImage(source: ImageSource.gallery);
-  if (pf != null) {
-    final file = File(pf.path);
-    debugPrint('Image sélectionnée : ${file.path}');
-    debugPrint('Le fichier existe : ${file.existsSync()}');
-    if (!file.existsSync()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("L'image sélectionnée n'existe pas.")),
-      );
-      return;
+    final pf = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (pf != null) {
+      final file = File(pf.path);
+      debugPrint('Image sélectionnée : ${file.path}');
+      debugPrint('Le fichier existe : ${file.existsSync()}');
+      if (!file.existsSync()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("L'image sélectionnée n'existe pas.")),
+        );
+        return;
+      }
+      setState(() => _pickedImage = file);
+      await _identifyPlantFromImage(file);
     }
-    setState(() => _pickedImage = file);
-    await _identifyPlantFromImage(file);
   }
-}
 
-Future<String?> _uploadImageToStorage(File imageFile) async {
-  try {
-    debugPrint('Chemin image : ${imageFile.path}');
-    debugPrint('File exists: ${imageFile.existsSync()}');
-    if (!imageFile.existsSync()) {
-      debugPrint("Le fichier image n'existe pas localement !");
+  Future<String?> _uploadImageToStorage(File imageFile) async {
+    try {
+      debugPrint('Chemin image : ${imageFile.path}');
+      debugPrint('File exists: ${imageFile.existsSync()}');
+      if (!imageFile.existsSync()) {
+        debugPrint("Le fichier image n'existe pas localement !");
+        return null;
+      }
+
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        debugPrint('Utilisateur non connecté');
+        return null;
+      }
+
+      final fileName =
+          'plants/${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final ref = FirebaseStorage.instance.ref().child(fileName);
+      debugPrint('Tentative d\'upload sur $fileName');
+
+      final imageSize = await imageFile.length();
+      debugPrint("📸 Taille image (en bytes) : $imageSize");
+
+      debugPrint("UID : $uid");
+      final uploadTask = await ref.putFile(imageFile);
+      debugPrint('Upload terminé');
+
+      final url = await uploadTask.ref.getDownloadURL();
+      debugPrint('URL de téléchargement : $url');
+      return url;
+    } catch (e) {
+      debugPrint('Erreur upload image: ${e.runtimeType} - $e');
       return null;
     }
+  }
+
+  Future<void> _identifyPlantFromImage(File image) async {
+    try {
+      debugPrint('Envoi image à l\'API : ${image.path}');
+      final uri = Uri.parse('http://172.30.192.1:8000/plantid/identify/');
+
+      final request = http.MultipartRequest('POST', uri)
+        ..files.add(await http.MultipartFile.fromPath('image', image.path));
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      debugPrint('Réponse serveur : ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final name = data['plantName'] as String;
+        _nameController.text = name;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Plante identifiée : $name')));
+      } else {
+        debugPrint(
+          'Erreur serveur : ${response.statusCode} - ${response.body}',
+        );
+        throw Exception('Erreur serveur : ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Erreur identification IA externe : $e');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Échec de reconnaissance")));
+    }
+  }
+
+  Future<void> _submitPlant() async {
+    debugPrint('Valeur de _pickedImage : $_pickedImage');
+    if (!_formKey.currentState!.validate()) return;
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      debugPrint('Utilisateur non connecté');
-      return null;
-    }
-
-    final fileName = 'plants/${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-    final ref = FirebaseStorage.instance.ref().child(fileName);
-    debugPrint('Tentative d\'upload sur $fileName');
-
-    final uploadTask = await ref.putFile(imageFile);
-    debugPrint('Upload terminé');
-
-    final url = await uploadTask.ref.getDownloadURL();
-    debugPrint('URL de téléchargement : $url');
-    return url;
-  } catch (e) {
-    debugPrint('Erreur upload image: $e');
-    return null;
-  }
-}
-
-Future<void> _identifyPlantFromImage(File image) async {
-  try {
-    debugPrint('Envoi image à l\'API : ${image.path}');
-    final uri = Uri.parse('http://172.30.192.1:8000/plantid/identify/');
-
-    final request = http.MultipartRequest('POST', uri)
-      ..files.add(
-        await http.MultipartFile.fromPath('image', image.path),
-      );
-
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
-
-    debugPrint('Réponse serveur : ${response.statusCode}');
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final name = data['plantName'] as String;
-      _nameController.text = name;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Plante identifiée : $name')),
-      );
-    } else {
-      debugPrint('Erreur serveur : ${response.statusCode} - ${response.body}');
-      throw Exception('Erreur serveur : ${response.statusCode}');
-    }
-  } catch (e) {
-    debugPrint('Erreur identification IA externe : $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Échec de reconnaissance")),
-    );
-  }
-}
-
-Future<void> _submitPlant() async {
-  if (!_formKey.currentState!.validate()) return;
-
-  final uid = FirebaseAuth.instance.currentUser?.uid;
-  if (uid == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Non connecté.")),
-    );
-    return;
-  }
-
-  String? finalImageUrl;
-
-  if (_pickedImage != null) {
-    debugPrint('Début upload image...');
-    final uploadedUrl = await _uploadImageToStorage(_pickedImage!);
-    if (uploadedUrl != null) {
-      finalImageUrl = uploadedUrl;
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Erreur lors de l'upload de l'image.")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Non connecté.")));
       return;
     }
-  }
+
+    String? finalImageUrl;
+
+    if (_pickedImage != null) {
+      debugPrint("🟡 Image sélectionnée : ${_pickedImage?.path}");
+      final uploadedUrl = await _uploadImageToStorage(_pickedImage!);
+      if (uploadedUrl != null) {
+        finalImageUrl = uploadedUrl;
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Erreur lors de l'upload de l'image.")),
+        );
+        return;
+      }
+    }
 
     Position? position;
     try {
