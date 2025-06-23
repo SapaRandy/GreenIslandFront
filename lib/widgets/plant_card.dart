@@ -6,11 +6,7 @@ class PlantCard extends StatelessWidget {
   final Plant plant;
   final VoidCallback onTap;
 
-  const PlantCard({
-    super.key,
-    required this.plant,
-    required this.onTap,
-  });
+  const PlantCard({super.key, required this.plant, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -42,8 +38,8 @@ class PlantCard extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (plant.room != null && plant.room!.isNotEmpty)
-              Text("Pièce : ${plant.room}"),
+            if (plant.dist != null && plant.dist!.isNotEmpty)
+              Text("Niveau eau : ${plant.dist}"),
             Text("Humidité : ${plant.humidity}"),
             Text("Température : ${plant.temp}"),
             Text("Ajoutée le : $formattedDate"),

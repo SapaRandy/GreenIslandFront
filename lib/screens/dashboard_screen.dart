@@ -51,7 +51,7 @@ class DashboardScreen extends StatelessWidget {
                 context,
                 id: id,
                 name: plant['name'] ?? 'Nom inconnu',
-                room: plant['room'] ?? 'Non précisé',
+                dist: plant['dist'] ?? 'Non précisé',
                 humidity: plant['humidity'] ?? '--',
                 temp: plant['temp'] ?? '--',
                 imageUrl: plant['imageUrl'] ?? '',
@@ -92,7 +92,7 @@ class DashboardScreen extends StatelessWidget {
     BuildContext context, {
     required String id,
     required String name,
-    required String room,
+    required String dist,
     required String humidity,
     required String temp,
     required String imageUrl,
@@ -123,7 +123,7 @@ class DashboardScreen extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Pièce : $room"),
+            Text("Niveau eau : $dist"),
             Text("Humidité : $humidity"),
             Text("Température : $temp"),
             if (date != null) Text("Ajoutée le : ${date.day}/${date.month}/${date.year}"),
@@ -137,7 +137,7 @@ class DashboardScreen extends StatelessWidget {
               builder: (_) => PlantDetailScreen(
                 plantId: id,
                 plantName: name,
-                room: room,
+                dist: dist,
                 imageUrl: imageUrl,
                 humidity: humidity,
                 temp: temp,

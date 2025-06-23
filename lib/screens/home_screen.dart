@@ -120,7 +120,7 @@ class HomeScreen extends StatelessWidget {
                               plantId: plant
                                   .id, // <- à extraire dans le modèle ou passer manuellement
                               plantName: plant.name,
-                              room: plant.room ?? 'Inconnu',
+                              dist: plant.dist ?? 'Inconnu',
                               imageUrl:
                                   plant.imageUrl ??
                                   'https://via.placeholder.com/150',
