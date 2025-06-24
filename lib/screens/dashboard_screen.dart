@@ -77,10 +77,16 @@ class DashboardScreen extends StatelessWidget {
         onTap: (index) {
           switch (index) {
             case 1:
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const SensorsScreen()));
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SensorsScreen()),
+              );
               break;
             case 2:
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              );
               break;
           }
         },
@@ -111,11 +117,12 @@ class DashboardScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           child: imageUrl.isNotEmpty
               ? Image.network(
-                  imageUrl,
+                  '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}',
                   width: 60,
                   height: 60,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, _, __) => const Icon(Icons.image_not_supported),
+                  errorBuilder: (context, _, __) =>
+                      const Icon(Icons.image_not_supported),
                 )
               : const Icon(Icons.image, size: 60),
         ),
@@ -126,7 +133,8 @@ class DashboardScreen extends StatelessWidget {
             Text("Niveau eau : $dist"),
             Text("Humidité : $humidity"),
             Text("Température : $temp"),
-            if (date != null) Text("Ajoutée le : ${date.day}/${date.month}/${date.year}"),
+            if (date != null)
+              Text("Ajoutée le : ${date.day}/${date.month}/${date.year}"),
           ],
         ),
         trailing: const Icon(Icons.arrow_forward_ios),
@@ -134,14 +142,8 @@ class DashboardScreen extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => PlantDetailScreen(
-                plantId: id,
-                plantName: name,
-                dist: dist,
-                imageUrl: imageUrl,
-                humidity: humidity,
-                temp: temp,
-              ),
+              builder: (_) =>
+                  PlantDetailScreen(plantId: id, initialImageUrl: imageUrl),
             ),
           );
         },

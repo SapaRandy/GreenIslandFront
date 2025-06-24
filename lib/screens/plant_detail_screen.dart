@@ -4,20 +4,12 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class PlantDetailScreen extends StatelessWidget {
   final String plantId;
-  final String plantName;
-  final String dist;
-  final String imageUrl;
-  final String humidity;
-  final String temp;
+  final String initialImageUrl;
 
   const PlantDetailScreen({
     super.key,
     required this.plantId,
-    required this.plantName,
-    required this.dist,
-    required this.imageUrl,
-    required this.humidity,
-    required this.temp,
+    required this.initialImageUrl,
   });
 
   void _deletePlant(BuildContext context) async {
@@ -58,13 +50,17 @@ class PlantDetailScreen extends StatelessWidget {
     }
   }
 
-  void _editPlant(BuildContext context) {
+  void _editPlant(BuildContext context, Map<String, dynamic> data) {
     final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController(text: plantName);
-    final roomController = TextEditingController(text: dist);
-    final humidityController = TextEditingController(text: humidity);
-    final tempController = TextEditingController(text: temp);
-    final imageUrlController = TextEditingController(text: imageUrl);
+    final nameController = TextEditingController(text: data['name'] ?? '');
+    final roomController = TextEditingController(text: data['dist'] ?? '');
+    final humidityController = TextEditingController(
+      text: data['humidity'] ?? '',
+    );
+    final tempController = TextEditingController(text: data['temp'] ?? '');
+    final imageUrlController = TextEditingController(
+      text: data['imageUrl'] ?? '',
+    );
 
     showModalBottomSheet(
       context: context,
@@ -132,7 +128,7 @@ class PlantDetailScreen extends StatelessWidget {
                             .doc(plantId)
                             .update({
                               'name': nameController.text.trim(),
-                              'dsit': roomController.text.trim(),
+                              'dist': roomController.text.trim(),
                               'humidity': humidityController.text.trim(),
                               'temp': tempController.text.trim(),
                               'imageUrl': imageUrlController.text.trim(),
@@ -163,13 +159,11 @@ class PlantDetailScreen extends StatelessWidget {
   Future<void> _addCareLog(BuildContext context, String action) async {
     try {
       final log = {'action': action, 'date': DateTime.now().toIso8601String()};
-
       await FirebaseFirestore.instance.collection('plants').doc(plantId).update(
         {
           'careLogs': FieldValue.arrayUnion([log]),
         },
       );
-
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('$action ajouté à l’historique')));
@@ -184,12 +178,12 @@ class PlantDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(plantName),
+        title: const Text("Détail de la plante"),
         backgroundColor: Colors.green,
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
-            onPressed: () => _editPlant(context),
+            onPressed: () {}, // sera redéfini après avoir chargé les données
           ),
           IconButton(
             icon: const Icon(Icons.delete),
@@ -211,9 +205,24 @@ class PlantDetailScreen extends StatelessWidget {
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
+          final imageUrl = data['imageUrl'] ?? '';
+          final name = data['name'] ?? 'Nom inconnu';
+          final dist = data['dist'] ?? '-';
+          final humidity = data['humidity'] ?? '-';
+          final temp = data['temp'] ?? '-';
           final latitude = data['latitude'];
           final longitude = data['longitude'];
           final careLogs = (data['careLogs'] ?? []) as List;
+
+          // 🛠 Lier l’action du bouton edit maintenant que data est là
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (ModalRoute.of(context)?.isCurrent == true) {
+              AppBar? appBar = Scaffold.of(context).widget.appBar as AppBar?;
+              appBar?.actions?.removeWhere(
+                (a) => a is IconButton && (a.icon as Icon).icon == Icons.edit,
+              );
+            }
+          });
 
           return SingleChildScrollView(
             child: Column(
@@ -221,7 +230,7 @@ class PlantDetailScreen extends StatelessWidget {
               children: [
                 Image.network(
                   imageUrl.isNotEmpty
-                      ? imageUrl
+                      ? '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}'
                       : 'https://via.placeholder.com/150?text=Plante',
                   height: 250,
                   fit: BoxFit.cover,
@@ -231,14 +240,13 @@ class PlantDetailScreen extends StatelessWidget {
                     color: Colors.grey,
                   ),
                 ),
-
                 Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        plantName,
+                        name,
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
@@ -268,9 +276,9 @@ class PlantDetailScreen extends StatelessWidget {
                             ),
                             markers: {
                               Marker(
-                                markerId: MarkerId('plant_location'),
+                                markerId: const MarkerId('plant_location'),
                                 position: LatLng(latitude, longitude),
-                                infoWindow: InfoWindow(title: plantName),
+                                infoWindow: InfoWindow(title: name),
                               ),
                             },
                             myLocationEnabled: false,

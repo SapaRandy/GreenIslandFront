@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'dashboard_screen.dart'; // adapter si besoin
 
 class AddPlantScreen extends StatefulWidget {
   const AddPlantScreen({super.key});
@@ -165,7 +166,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     try {
       await FirebaseFirestore.instance.collection('plants').add({
         'name': _nameController.text.trim(),
-        'room': _roomController.text.trim(),
+        'dist': _roomController.text.trim(),
         'humidity': _humidityController.text.trim(),
         'temp': _tempController.text.trim(),
         'imageUrl': finalImageUrl ?? '', // ← ici image obligatoire si chargée
@@ -177,7 +178,11 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         },
       });
 
-      Navigator.pop(context);
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const DashboardScreen()),
+      );
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Plante ajoutée !")));
@@ -229,7 +234,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
               TextFormField(
                 controller: _roomController,
                 decoration: const InputDecoration(
-                  labelText: 'Pièce',
+                  labelText: 'Niveau d/eau',
                   border: OutlineInputBorder(),
                 ),
               ),

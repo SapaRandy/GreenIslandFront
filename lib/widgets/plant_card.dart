@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/plant.dart';
-import 'package:intl/intl.dart' as intl; // Pour formater les dates
+import 'package:intl/intl.dart' as intl;
 
 class PlantCard extends StatelessWidget {
   final Plant plant;
@@ -14,6 +14,9 @@ class PlantCard extends StatelessWidget {
         ? intl.DateFormat('dd/MM/yyyy').format(plant.createdAt!.toDate())
         : 'Date inconnue';
 
+    final imageUrl =
+        '${plant.imageUrl ?? 'https://source.unsplash.com/featured/?plant'}?t=${DateTime.now().millisecondsSinceEpoch}';
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -23,7 +26,7 @@ class PlantCard extends StatelessWidget {
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: Image.network(
-            plant.imageUrl ?? 'https://source.unsplash.com/featured/?plant',
+            imageUrl,
             width: 60,
             height: 60,
             fit: BoxFit.cover,
@@ -31,20 +34,33 @@ class PlantCard extends StatelessWidget {
                 const Icon(Icons.image_not_supported, size: 60),
           ),
         ),
-        title: Text(
-          plant.name,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        title: Row(
+          children: [
+            const Icon(Icons.eco, color: Colors.green, size: 20),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                plant.name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (plant.dist != null && plant.dist!.isNotEmpty)
               Text("Niveau eau : ${plant.dist}"),
-            Text("Humidité : ${plant.humidity}"),
-            Text("Température : ${plant.temp}"),
+            Text("Humidité : ${plant.humidity ?? '--'}%"),
+            Text("Température : ${plant.temp ?? '--'}°C"),
             Text("Ajoutée le : $formattedDate"),
             if (plant.latitude != null && plant.longitude != null)
-              Text("📍 ${plant.latitude}, ${plant.longitude}"),
+              Text(
+                "📍 ${plant.latitude?.toStringAsFixed(4)}, ${plant.longitude?.toStringAsFixed(4)}",
+              ),
           ],
         ),
         trailing: const Icon(Icons.arrow_forward_ios),
