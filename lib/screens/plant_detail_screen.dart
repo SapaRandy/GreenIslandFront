@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+
 
 class PlantDetailScreen extends StatelessWidget {
   final String plantId;
@@ -149,32 +151,39 @@ class PlantDetailScreen extends StatelessWidget {
                       const SizedBox(height: 12),
 
                       if (latitude != null && longitude != null)
-                        SizedBox(
-                          height: 200,
-                          child: GoogleMap(
-                            initialCameraPosition: CameraPosition(
-                              target: LatLng(latitude, longitude),
-                              zoom: 16,
-                            ),
-                            markers: {
-                              Marker(
-                                markerId: const MarkerId('plant_location'),
-                                position: LatLng(latitude, longitude),
-                                infoWindow: InfoWindow(title: name),
-                              ),
-                            },
-                            myLocationEnabled: false,
-                            zoomControlsEnabled: false,
+                      SizedBox(
+                        height: 200,
+                        child: FlutterMap(
+                          options: MapOptions(
+                            center: LatLng(latitude, longitude),
+                            zoom: 15,
                           ),
-                        )
-                      else
-                        Row(
-                          children: const [
-                            Icon(Icons.location_off, color: Colors.grey),
-                            SizedBox(width: 6),
-                            Text("Localisation non disponible"),
+                          children: [
+                            TileLayer(
+                              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              userAgentPackageName: 'com.company.smart_app',
+                            ),
+                            MarkerLayer(
+                              markers: [
+                                Marker(
+                                  point: LatLng(latitude, longitude),
+                                  width: 40,
+                                  height: 40,
+                                  child: const Icon(Icons.location_on, color: Colors.red, size: 40),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
+                      )
+                    else
+                      Row(
+                        children: const [
+                          Icon(Icons.location_off, color: Colors.grey),
+                          SizedBox(width: 6),
+                          Text("Localisation non disponible"),
+                        ],
+                      ),
 
                       const SizedBox(height: 24),
                       const Text(
