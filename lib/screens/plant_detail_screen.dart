@@ -50,112 +50,6 @@ class PlantDetailScreen extends StatelessWidget {
     }
   }
 
-  void _editPlant(BuildContext context, Map<String, dynamic> data) {
-    final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController(text: data['name'] ?? '');
-    final roomController = TextEditingController(text: data['dist'] ?? '');
-    final humidityController = TextEditingController(
-      text: data['humidity'] ?? '',
-    );
-    final tempController = TextEditingController(text: data['temp'] ?? '');
-    final imageUrlController = TextEditingController(
-      text: data['imageUrl'] ?? '',
-    );
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            left: 16,
-            right: 16,
-            top: 24,
-          ),
-          child: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    "Modifier la plante",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: nameController,
-                    decoration: const InputDecoration(labelText: 'Nom'),
-                    validator: (v) => v!.isEmpty ? "Nom requis" : null,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: roomController,
-                    decoration: const InputDecoration(labelText: 'Niveau eau'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: humidityController,
-                    decoration: const InputDecoration(
-                      labelText: 'Humidité (%)',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: tempController,
-                    decoration: const InputDecoration(
-                      labelText: 'Température (°C)',
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: imageUrlController,
-                    decoration: const InputDecoration(labelText: 'Image URL'),
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.save),
-                    label: const Text("Enregistrer"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                    ),
-                    onPressed: () async {
-                      if (!formKey.currentState!.validate()) return;
-                      try {
-                        await FirebaseFirestore.instance
-                            .collection('plants')
-                            .doc(plantId)
-                            .update({
-                              'name': nameController.text.trim(),
-                              'dist': roomController.text.trim(),
-                              'humidity': humidityController.text.trim(),
-                              'temp': tempController.text.trim(),
-                              'imageUrl': imageUrlController.text.trim(),
-                            });
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Modifications enregistrées."),
-                          ),
-                        );
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("Erreur : ${e.toString()}")),
-                        );
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Future<void> _addCareLog(BuildContext context, String action) async {
     try {
       final log = {'action': action, 'date': DateTime.now().toIso8601String()};
@@ -182,10 +76,6 @@ class PlantDetailScreen extends StatelessWidget {
         backgroundColor: Colors.green,
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () {}, // sera redéfini après avoir chargé les données
-          ),
-          IconButton(
             icon: const Icon(Icons.delete),
             onPressed: () => _deletePlant(context),
           ),
@@ -200,29 +90,29 @@ class PlantDetailScreen extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+
           if (!snapshot.hasData || !snapshot.data!.exists) {
             return const Center(child: Text("Plante non trouvée"));
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
-          final imageUrl = data['imageUrl'] ?? '';
-          final name = data['name'] ?? 'Nom inconnu';
-          final dist = data['dist'] ?? '-';
-          final humidity = data['humidity'] ?? '-';
-          final temp = data['temp'] ?? '-';
-          final latitude = data['latitude'];
-          final longitude = data['longitude'];
-          final careLogs = (data['careLogs'] ?? []) as List;
 
-          // 🛠 Lier l’action du bouton edit maintenant que data est là
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (ModalRoute.of(context)?.isCurrent == true) {
-              AppBar? appBar = Scaffold.of(context).widget.appBar as AppBar?;
-              appBar?.actions?.removeWhere(
-                (a) => a is IconButton && (a.icon as Icon).icon == Icons.edit,
-              );
-            }
-          });
+          final String name = data['name'] ?? 'Nom inconnu';
+          final String dist = data['dist'] ?? '-';
+          final String humidity = data['humidity'] ?? '-';
+          final String temp = data['temp'] ?? '-';
+          final String imageUrl = data['imageUrl'] ?? '';
+          final double? latitude = data['latitude'] is double
+              ? data['latitude']
+              : null;
+          final double? longitude = data['longitude'] is double
+              ? data['longitude']
+              : null;
+
+          final List<dynamic> careLogsRaw = data['careLogs'] ?? [];
+          final List<Map<String, dynamic>> careLogs = careLogsRaw
+              .whereType<Map<String, dynamic>>()
+              .toList();
 
           return SingleChildScrollView(
             child: Column(
@@ -253,19 +143,11 @@ class PlantDetailScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        "Niveau eau : $dist",
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      Text(
-                        "Température : $temp°C",
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      Text(
-                        "Humidité : $humidity%",
-                        style: const TextStyle(fontSize: 16),
-                      ),
+                      Text("Niveau eau : $dist"),
+                      Text("Température : $temp°C"),
+                      Text("Humidité : $humidity%"),
                       const SizedBox(height: 12),
+
                       if (latitude != null && longitude != null)
                         SizedBox(
                           height: 200,
@@ -290,12 +172,10 @@ class PlantDetailScreen extends StatelessWidget {
                           children: const [
                             Icon(Icons.location_off, color: Colors.grey),
                             SizedBox(width: 6),
-                            Text(
-                              "Localisation non disponible",
-                              style: TextStyle(fontSize: 16),
-                            ),
+                            Text("Localisation non disponible"),
                           ],
                         ),
+
                       const SizedBox(height: 24),
                       const Text(
                         "Historique des soins :",
@@ -306,13 +186,18 @@ class PlantDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       if (careLogs.isEmpty)
-                        const Text("Aucun soin enregistré."),
-                      for (var log in careLogs)
-                        ListTile(
-                          leading: const Icon(Icons.history),
-                          title: Text(log['action'] ?? 'Action inconnue'),
-                          subtitle: Text((log['date'] ?? '').toString()),
-                        ),
+                        const Text("Aucun soin enregistré.")
+                      else
+                        ...careLogs.map((log) {
+                          final action = log['action'] ?? 'Action inconnue';
+                          final date = log['date'] ?? '';
+                          return ListTile(
+                            leading: const Icon(Icons.history),
+                            title: Text(action),
+                            subtitle: Text(date.toString()),
+                          );
+                        }),
+
                       const SizedBox(height: 24),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
