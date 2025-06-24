@@ -7,7 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
-import 'dashboard_screen.dart'; // adapter si besoin
+import 'package:fluttertoast/fluttertoast.dart';
+import 'dashboard_screen.dart';
 
 class AddPlantScreen extends StatefulWidget {
   const AddPlantScreen({super.key});
@@ -21,32 +22,27 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   final _roomController = TextEditingController();
   final _humidityController = TextEditingController();
   final _tempController = TextEditingController();
-  final _imageUrlController = TextEditingController();
 
   File? _pickedImage;
+  bool _isLoading = false;
 
   Future<void> _pickImage() async {
-    // // Demande la permission de stockage (Android)
-    // if (Platform.isAndroid) {
-    //   final status = await Permission.storage.request();
-    //   if (!status.isGranted) {
-    //     debugPrint("Permission stockage refusée");
-    //     ScaffoldMessenger.of(context).showSnackBar(
-    //       const SnackBar(content: Text("Permission stockage refusée.")),
-    //     );
-    //     return;
-    //   }
-    // }
-
     final pf = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (pf != null) {
       final file = File(pf.path);
-      debugPrint('Image sélectionnée : ${file.path}');
-      debugPrint('Le fichier existe : ${file.existsSync()}');
       if (!file.existsSync()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("L'image sélectionnée n'existe pas.")),
+        Fluttertoast.showToast(
+          msg: "🪴 ${_nameController.text.trim()} ajoutée avec succès",
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.TOP,
+          backgroundColor: Colors.green.shade700,
+          textColor: Colors.white,
+          fontSize: 16.0,
         );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Image non trouvée.")));
+
         return;
       }
       setState(() => _pickedImage = file);
@@ -56,52 +52,29 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
 
   Future<String?> _uploadImageToStorage(File imageFile) async {
     try {
-      debugPrint('Chemin image : ${imageFile.path}');
-      debugPrint('File exists: ${imageFile.existsSync()}');
-      if (!imageFile.existsSync()) {
-        debugPrint("Le fichier image n'existe pas localement !");
-        return null;
-      }
-
       final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) {
-        debugPrint('Utilisateur non connecté');
-        return null;
-      }
+      if (uid == null) return null;
 
       final fileName =
           'plants/${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final ref = FirebaseStorage.instance.ref().child(fileName);
-      debugPrint('Tentative d\'upload sur $fileName');
-
-      final imageSize = await imageFile.length();
-      debugPrint("📸 Taille image (en bytes) : $imageSize");
-
-      debugPrint("UID : $uid");
-      final uploadTask = await ref.putFile(imageFile);
-      debugPrint('Upload terminé');
-
-      final url = await uploadTask.ref.getDownloadURL();
-      debugPrint('URL de téléchargement : $url');
-      return url;
+      await ref.putFile(imageFile);
+      return await ref.getDownloadURL();
     } catch (e) {
-      debugPrint('Erreur upload image: ${e.runtimeType} - $e');
+      debugPrint('Erreur upload image: $e');
       return null;
     }
   }
 
   Future<void> _identifyPlantFromImage(File image) async {
     try {
-      debugPrint('Envoi image à l\'API : ${image.path}');
       final uri = Uri.parse('http://172.30.192.1:8000/plantid/identify/');
-
       final request = http.MultipartRequest('POST', uri)
         ..files.add(await http.MultipartFile.fromPath('image', image.path));
 
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
-      debugPrint('Réponse serveur : ${response.statusCode}');
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final name = data['plantName'] as String;
@@ -110,66 +83,61 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text('Plante identifiée : $name')));
       } else {
-        debugPrint(
-          'Erreur serveur : ${response.statusCode} - ${response.body}',
-        );
-        throw Exception('Erreur serveur : ${response.statusCode}');
+        throw Exception('Erreur API ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint('Erreur identification IA externe : $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Échec de reconnaissance")));
+      debugPrint('Erreur API IA : $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Échec de la reconnaissance de plante")),
+      );
     }
   }
 
   Future<void> _submitPlant() async {
-    debugPrint('Valeur de _pickedImage : $_pickedImage');
     if (!_formKey.currentState!.validate()) return;
 
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Non connecté.")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Utilisateur non connecté.")),
+      );
       return;
     }
 
-    String? finalImageUrl;
+    setState(() => _isLoading = true);
 
+    String? finalImageUrl;
     if (_pickedImage != null) {
-      debugPrint("🟡 Image sélectionnée : ${_pickedImage?.path}");
       final uploadedUrl = await _uploadImageToStorage(_pickedImage!);
-      if (uploadedUrl != null) {
-        finalImageUrl = uploadedUrl;
-      } else {
+      if (uploadedUrl == null) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Erreur lors de l'upload de l'image.")),
         );
         return;
       }
+      finalImageUrl = uploadedUrl;
     }
 
     Position? position;
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
+      var permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         permission = await Geolocator.requestPermission();
       }
-
       position = await Geolocator.getCurrentPosition();
     } catch (e) {
-      debugPrint("Erreur de géolocalisation : $e");
+      debugPrint("Erreur géolocalisation : $e");
     }
 
     try {
       await FirebaseFirestore.instance.collection('plants').add({
         'name': _nameController.text.trim(),
-        'dist': _roomController.text.trim(),
+        'room': _roomController.text.trim(),
         'humidity': _humidityController.text.trim(),
         'temp': _tempController.text.trim(),
-        'imageUrl': finalImageUrl ?? '', // ← ici image obligatoire si chargée
+        'imageUrl': finalImageUrl ?? '',
         'userId': uid,
         'createdAt': FieldValue.serverTimestamp(),
         if (position != null) ...{
@@ -178,18 +146,22 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         },
       });
 
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const DashboardScreen()),
       );
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Plante ajoutée !")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Plante ajoutée avec succès !")),
+      );
     } catch (e) {
+      debugPrint('Erreur ajout plante : $e');
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text("Erreur : ${e.toString()}")));
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -208,7 +180,22 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (_pickedImage != null)
-                Image.file(_pickedImage!, height: 200, fit: BoxFit.cover),
+                Stack(
+                  children: [
+                    Image.file(_pickedImage!, height: 200, fit: BoxFit.cover),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: () => setState(() => _pickedImage = null),
+                        child: const CircleAvatar(
+                          backgroundColor: Colors.white,
+                          child: Icon(Icons.close, color: Colors.red),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 16),
               ElevatedButton.icon(
                 onPressed: _pickImage,
@@ -234,7 +221,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
               TextFormField(
                 controller: _roomController,
                 decoration: const InputDecoration(
-                  labelText: 'Niveau d/eau',
+                  labelText: 'Niveau d\'eau',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -245,6 +232,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
                   labelText: 'Humidité (%)',
                   border: OutlineInputBorder(),
                 ),
+                keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -253,23 +241,19 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
                   labelText: 'Température (°C)',
                   border: OutlineInputBorder(),
                 ),
+                keyboardType: TextInputType.number,
               ),
-              const SizedBox(height: 12),
-              // TextFormField(
-              //   controller: _imageUrlController,
-              //   decoration: const InputDecoration(
-              //     labelText: 'URL de l\'image (optionnel)',
-              //     border: OutlineInputBorder(),
-              //   ),
-              //   validator: (v) => v!.isEmpty ? "URL optionnelle" : null,
-              // ),
               const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: _submitPlant,
-                icon: const Icon(Icons.save),
-                label: const Text("Enregistrer"),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              ),
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ElevatedButton.icon(
+                      onPressed: _submitPlant,
+                      icon: const Icon(Icons.save),
+                      label: const Text("Enregistrer"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                      ),
+                    ),
             ],
           ),
         ),
