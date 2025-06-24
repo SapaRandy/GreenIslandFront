@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import 'plant_detail_screen.dart';
 import 'add_plant_screen.dart';
-import '../widgets/plant_card.dart';
+import 'profile_screen.dart';
 import '../models/plant.dart';
+import '../widgets/plant_card.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -22,14 +24,17 @@ class HomeScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
-              // Rediriger vers paramètres
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              );
             },
           ),
         ],
       ),
       body: Column(
         children: [
-          // ✅ Zone d’actions rapides
+          // ✅ Actions rapides
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: Row(
@@ -74,10 +79,7 @@ class HomeScreen extends StatelessWidget {
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('plants')
-                  .where(
-                    'userId',
-                    isEqualTo: FirebaseAuth.instance.currentUser?.uid,
-                  )
+                  .where('userId', isEqualTo: userId)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -88,8 +90,7 @@ class HomeScreen extends StatelessWidget {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final plantDocs = snapshot.data!.docs;
-
+                final plantDocs = snapshot.data?.docs ?? [];
                 if (plantDocs.isEmpty) {
                   return const Center(
                     child: Text("Aucune plante enregistrée."),
@@ -100,8 +101,7 @@ class HomeScreen extends StatelessWidget {
                   itemCount: plantDocs.length,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemBuilder: (context, index) {
-                    final data =
-                        plantDocs[index].data() as Map<String, dynamic>;
+                    final data = plantDocs[index].data() as Map<String, dynamic>;
                     final plant = Plant.fromMap(plantDocs[index].id, data);
 
                     return PlantCard(
@@ -111,15 +111,8 @@ class HomeScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => PlantDetailScreen(
-                              plantId: plant
-                                  .id, // <- à extraire dans le modèle ou passer manuellement
-                              plantName: plant.name,
-                              room: plant.room ?? 'Inconnu',
-                              imageUrl:
-                                  plant.imageUrl ??
-                                  'https://via.placeholder.com/150',
-                              humidity: plant.humidity ?? 'Inconnu',
-                              temp: plant.temp ?? 'Inconnu',
+                              plantId: plant.id,
+                              initialImageUrl: plant.imageUrl ?? '',
                             ),
                           ),
                         );

@@ -2,6 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'logout_button.dart';
+import 'devices_screen.dart';
+import 'sensor_screen.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+
+// Variable globale pour l'état de l'arrosage automatique
+bool autoWateringEnabled = false; // au-dessus du build()
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -24,18 +32,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadUserData();
   }
 
+  Future<void> _pickAndUploadImage() async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery);
+    if (file == null) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child('profile_pictures')
+        .child('${user.uid}.jpg');
+
+    await ref.putFile(File(file.path));
+    final imageUrl = await ref.getDownloadURL();
+
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+      'photoUrl': imageUrl,
+    });
+
+    await _loadUserData(); // recharge les données
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Photo de profil mise à jour.")),
+    );
+  }
+
   Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
     final data = doc.data();
 
     if (data != null) {
       setState(() {
         userData = data;
         _nameController.text = data['fullName'] ?? '';
-        _photoUrlController.text = data['photoUrl'] ?? '';
+        // _photoUrlController.text = data['photoUrl'] ?? '';
         isLoading = false;
       });
     }
@@ -55,7 +93,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       userData!['photoUrl'] = _photoUrlController.text.trim();
     });
 
-    Navigator.of(context).pop(); // Close the dialog
+    Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Profil mis à jour avec succès')),
     );
@@ -74,18 +112,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: 'Nom complet'),
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'Veuillez saisir un nom' : null,
+                validator: (value) => value == null || value.isEmpty
+                    ? 'Veuillez saisir un nom'
+                    : null,
               ),
               TextFormField(
                 controller: _photoUrlController,
-                decoration: const InputDecoration(labelText: 'URL photo de profil'),
+                decoration: const InputDecoration(
+                  labelText: 'URL photo de profil',
+                ),
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
           ElevatedButton(
             onPressed: () {
               if (_formKey.currentState!.validate()) {
@@ -101,7 +145,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final avatarUrl = userData?['photoUrl'] ?? 'https://i.pravatar.cc/150?img=47';
+    final avatarUrl =
+        userData?['photoUrl'] ?? 'https://i.pravatar.cc/150?img=47';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F2),
@@ -122,15 +167,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
           : ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                CircleAvatar(
-                  radius: 50,
-                  backgroundImage: NetworkImage(avatarUrl),
+                GestureDetector(
+                  onTap: _pickAndUploadImage,
+                  child: CircleAvatar(
+                    radius: 50,
+                    backgroundImage: NetworkImage('$avatarUrl?${DateTime.now().millisecondsSinceEpoch}'),
+                    child: Align(
+                      alignment: Alignment.bottomRight,
+                      child: CircleAvatar(
+                        backgroundColor: Colors.white,
+                        radius: 15,
+                        child: Icon(Icons.edit, size: 16, color: Colors.black),
+                      ),
+                    ),
+                  ),
                 ),
+
                 const SizedBox(height: 16),
                 Center(
                   child: Text(
                     userData?['fullName'] ?? 'Nom inconnu',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 Center(
@@ -140,25 +200,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const Divider(height: 40),
+
+                // ✅ Nouvelle carte : Appareils connectés
                 Card(
                   child: ListTile(
-                    leading: const Icon(Icons.notifications_active, color: Colors.green),
+                    leading: const Icon(Icons.devices, color: Colors.teal),
+                    title: const Text("Appareils connectés"),
+                    trailing: const Icon(Icons.arrow_forward_ios),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const DevicesScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                Card(
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.notifications_active,
+                      color: Colors.green,
+                    ),
                     title: const Text("Notifications"),
                     trailing: const Icon(Icons.arrow_forward_ios),
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SensorsScreen(),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 Card(
                   child: SwitchListTile(
-                    value: true,
-                    onChanged: (v) {},
+                    value: autoWateringEnabled,
+                    onChanged: (value) {
+                      setState(() {
+                        autoWateringEnabled = value;
+                      });
+                    },
                     title: const Text("Arrosage automatique"),
                     secondary: const Icon(Icons.water_drop, color: Colors.blue),
                   ),
                 ),
                 Card(
                   child: ListTile(
-                    leading: const Icon(Icons.help_outline, color: Colors.orange),
+                    leading: const Icon(
+                      Icons.help_outline,
+                      color: Colors.orange,
+                    ),
                     title: const Text("Aide & FAQ"),
                     trailing: const Icon(Icons.arrow_forward_ios),
                     onTap: () {},
@@ -171,5 +266,3 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
-// This code defines a ProfileScreen widget that allows users to view and edit their profile information.
-// It includes functionality to load user data from Firestore, update the profile, and display options like notifications and automatic watering.

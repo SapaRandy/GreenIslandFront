@@ -7,7 +7,7 @@ class Plant {
   final String name;
   final String humidity;
   final String temp;
-  final String? room;
+  final String? dist;
   final String? imageUrl;
   final double? latitude;
   final double? longitude;
@@ -20,7 +20,7 @@ class Plant {
     required this.temp,
     this.userId,
     this.createdAt,
-    this.room,
+    this.dist,
     this.imageUrl,
     this.latitude,
     this.longitude,
@@ -35,7 +35,7 @@ class Plant {
       name: (map['name'] ?? '').toString().trim(),
       humidity: (map['humidity'] ?? '').toString().trim(),
       temp: (map['temp'] ?? '').toString().trim(),
-      room: map['room']?.toString().trim(),
+      dist: map['room']?.toString().trim(),
       imageUrl: map['imageUrl']?.toString().trim(),
       latitude: (map['latitude'] != null) ? (map['latitude'] as num).toDouble() : null,
       longitude: (map['longitude'] != null) ? (map['longitude'] as num).toDouble() : null,
@@ -50,7 +50,7 @@ class Plant {
       'name': name,
       'humidity': humidity,
       'temp': temp,
-      'room': room,
+      'dist': dist,
       'imageUrl': imageUrl,
       'userId': userId,
       'createdAt': createdAt,

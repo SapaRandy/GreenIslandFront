@@ -1,9 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'plant_detail_screen.dart';
 import 'add_plant_screen.dart';
 import 'sensor_screen.dart';
 import 'profile_screen.dart';
-
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -17,33 +18,48 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Mes plantes"),
+        title: const Text("Mes Plantes"),
         backgroundColor: Colors.green,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _buildPlantCard(
-            context,
-            name: "Monstera",
-            room: "Salon",
-            imageUrl: "https://images.unsplash.com/photo-1601004890684-d8cbf643f5f2",
-          ),
-          _buildPlantCard(
-            context,
-            name: "Ficus",
-            room: "Chambre",
-            imageUrl: "https://images.unsplash.com/photo-1616627982501-0d7f2562f291",
-          ),
-          _buildPlantCard(
-            context,
-            name: "Aloe Vera",
-            room: "Cuisine",
-            imageUrl: "https://images.unsplash.com/photo-1587301023694-30f0d1dfd93e",
-          ),
-        ],
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('plants')
+            .where('userId', isEqualTo: userId)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) {
+            return const Center(child: Text("Aucune plante ajoutée."));
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final plant = docs[index].data() as Map<String, dynamic>;
+              final id = docs[index].id;
+
+              return _buildPlantCard(
+                context,
+                id: id,
+                name: plant['name'] ?? 'Nom inconnu',
+                dist: plant['dist'] ?? 'Non précisé',
+                humidity: plant['humidity'] ?? '--',
+                temp: plant['temp'] ?? '--',
+                imageUrl: plant['imageUrl'] ?? '',
+                createdAt: plant['createdAt'] as Timestamp?,
+              );
+            },
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.green,
@@ -59,31 +75,39 @@ class DashboardScreen extends StatelessWidget {
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
         ],
         onTap: (index) {
-  switch (index) {
-    case 1:
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const SensorsScreen()),
-      );
-      break;
-    case 2:
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
-      );
-      break;
-  }
-}
-
+          switch (index) {
+            case 1:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SensorsScreen()),
+              );
+              break;
+            case 2:
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+              );
+              break;
+          }
+        },
       ),
     );
   }
 
-  Widget _buildPlantCard(BuildContext context, {
+  Widget _buildPlantCard(
+    BuildContext context, {
+    required String id,
     required String name,
-    required String room,
+    required String dist,
+    required String humidity,
+    required String temp,
     required String imageUrl,
+    Timestamp? createdAt,
   }) {
+    final date = createdAt != null
+        ? DateTime.fromMillisecondsSinceEpoch(createdAt.millisecondsSinceEpoch)
+        : null;
+
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.only(bottom: 16),
@@ -91,27 +115,35 @@ class DashboardScreen extends StatelessWidget {
         contentPadding: const EdgeInsets.all(16),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            imageUrl,
-            width: 60,
-            height: 60,
-            fit: BoxFit.cover,
-          ),
+          child: imageUrl.isNotEmpty
+              ? Image.network(
+                  '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}',
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, _, __) =>
+                      const Icon(Icons.image_not_supported),
+                )
+              : const Icon(Icons.image, size: 60),
         ),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text("Pièce : $room"),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Niveau eau : $dist"),
+            Text("Humidité : $humidity"),
+            Text("Température : $temp"),
+            if (date != null)
+              Text("Ajoutée le : ${date.day}/${date.month}/${date.year}"),
+          ],
+        ),
+        trailing: const Icon(Icons.arrow_forward_ios),
         onTap: () {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => PlantDetailScreen(
-                plantId: name.hashCode.toString(), // or provide a real plantId
-                plantName: name,
-                room: room,
-                imageUrl: imageUrl,
-                humidity: 50.toString(), // replace with actual humidity value if available
-                temp: 22.toString(), // replace with actual temperature value if available
-              ),
+              builder: (_) =>
+                  PlantDetailScreen(plantId: id, initialImageUrl: imageUrl),
             ),
           );
         },
