@@ -6,12 +6,13 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:http/http.dart' as http;
 import 'dashboard_screen.dart';
 
 class AddPlantScreen extends StatefulWidget {
   const AddPlantScreen({super.key});
+
   @override
   State<AddPlantScreen> createState() => _AddPlantScreenState();
 }
@@ -19,33 +20,20 @@ class AddPlantScreen extends StatefulWidget {
 class _AddPlantScreenState extends State<AddPlantScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _roomController = TextEditingController();
-  final _humidityController = TextEditingController();
-  final _tempController = TextEditingController();
-  final _detailsController = TextEditingController();
-
+  bool _isOutdoor = false;
   File? _pickedImage;
   String? _uploadedImageUrl;
-  bool _isOutdoor = false;
   bool _isLoading = false;
+  Map<String, dynamic>? _foundPlantData;
 
-  Future<void> _pickImageFromGallery() async {
-    final pf = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (pf == null) return;
-
-    final file = File(pf.path);
-    if (!file.existsSync()) {
-      Fluttertoast.showToast(msg: "Image introuvable");
-      return;
+  Future<void> _pickImage() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      setState(() => _pickedImage = File(picked.path));
     }
-
-    setState(() => _pickedImage = file);
-    await _triggerPlantIdentification();
   }
 
   Future<String?> _uploadImageToStorage(File imageFile) async {
-    if (_uploadedImageUrl != null) return _uploadedImageUrl;
-
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       final ref = FirebaseStorage.instance
@@ -53,128 +41,107 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
           .child('plants/${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
       await ref.putFile(imageFile);
       final url = await ref.getDownloadURL();
-      _uploadedImageUrl = url;
       return url;
     } catch (e) {
-      debugPrint('Upload failed: $e');
+      Fluttertoast.showToast(msg: "Échec upload image : $e");
       return null;
     }
   }
 
-  Future<void> _uploadImageOnly() async {
-    if (_pickedImage == null) {
-      Fluttertoast.showToast(msg: "Veuillez sélectionner une image d'abord");
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    final url = await _uploadImageToStorage(_pickedImage!);
-    if (url != null) {
-      Fluttertoast.showToast(msg: "Image uploadée avec succès.");
-    } else {
-      Fluttertoast.showToast(msg: "Échec de l'upload.");
-    }
-
-    setState(() => _isLoading = false);
-  }
-
   Future<void> _triggerPlantIdentification() async {
-    if (_pickedImage == null) {
-      Fluttertoast.showToast(msg: "Veuillez d'abord choisir une image");
-      return;
-    }
-
+    if (_pickedImage == null) return;
+    setState(() => _isLoading = true);
     try {
-      setState(() => _isLoading = true);
       final uri = Uri.parse('http://172.30.192.1:8000/plantid/identify/');
       final request = http.MultipartRequest('POST', uri)
         ..files.add(await http.MultipartFile.fromPath('image', _pickedImage!.path));
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final plantName = data['plant_name'];
-        if (plantName != null) {
-          _nameController.text = plantName;
-          Fluttertoast.showToast(msg: "Plante reconnue : $plantName");
-          await _fetchPlantData(plantName);
+        final name = data['plant_name'];
+        if (name != null) {
+          _nameController.text = name;
+          Fluttertoast.showToast(msg: "Plante reconnue : $name");
+          await _searchPlantByName(name);
         } else {
-          Fluttertoast.showToast(msg: "Aucune plante identifiée");
+          Fluttertoast.showToast(msg: "Plante non reconnue");
         }
       } else {
-        Fluttertoast.showToast(msg: "Erreur ${response.statusCode}");
+        Fluttertoast.showToast(msg: "Erreur serveur : ${response.statusCode}");
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: "Erreur IA : $e");
+      Fluttertoast.showToast(msg: "Erreur identification : $e");
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _fetchPlantData(String name) async {
+  Future<void> _searchPlantByName(String name) async {
+    setState(() => _isLoading = true);
     try {
-      final response = await http.get(
-        Uri.parse("http://172.30.192.1:8000/plantid/scrap/?name=$name"),
-      );
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body);
-        final detail = json['data'] ?? '';
-        _detailsController.text = detail;
+      final result = await FirebaseFirestore.instance
+          .collection('plants_data')
+          .where('name', isEqualTo: name)
+          .limit(1)
+          .get();
+
+      if (result.docs.isNotEmpty) {
+        setState(() => _foundPlantData = result.docs.first.data());
       } else {
-        Fluttertoast.showToast(msg: "Données introuvables pour $name");
+        Fluttertoast.showToast(msg: "Plante non trouvée dans la base.");
+        setState(() => _foundPlantData = null);
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: "Erreur fetch détails : $e");
+      Fluttertoast.showToast(msg: "Erreur de recherche : $e");
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _submitPlant() async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _submit() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+    if (uid == null || _foundPlantData == null) return;
 
     setState(() => _isLoading = true);
     String? imageUrl;
-
     if (_pickedImage != null) {
       imageUrl = await _uploadImageToStorage(_pickedImage!);
       if (imageUrl == null) {
         setState(() => _isLoading = false);
-        Fluttertoast.showToast(msg: "Échec de l'upload image.");
         return;
       }
     }
 
     Position? position;
-    try {
-      var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        permission = await Geolocator.requestPermission();
+    if (_isOutdoor) {
+      try {
+        var perm = await Geolocator.checkPermission();
+        if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+          perm = await Geolocator.requestPermission();
+        }
+        position = await Geolocator.getCurrentPosition();
+      } catch (e) {
+        Fluttertoast.showToast(msg: "Erreur géoloc : $e");
       }
-      position = await Geolocator.getCurrentPosition();
-    } catch (e) {
-      debugPrint("Géoloc désactivée : $e");
     }
 
     try {
-      await FirebaseFirestore.instance.collection('plants').add({
-        'name': _nameController.text.trim(),
-        'dist': _roomController.text.trim(),
-        'humidity': _humidityController.text.trim(),
-        'temp': _tempController.text.trim(),
-        'details': _detailsController.text.trim(),
-        'imageUrl': imageUrl ?? '',
-        'userId': uid,
-        'createdAt': FieldValue.serverTimestamp(),
+      final userDoc = FirebaseFirestore.instance.collection('users').doc(uid);
+      final plantData = {
+        ..._foundPlantData!,
+        'imageUrl': imageUrl ?? _foundPlantData!['imageUrl'] ?? '',
+        'addedAt': FieldValue.serverTimestamp(),
         'isOutdoor': _isOutdoor,
         if (position != null) ...{
           'latitude': position.latitude,
           'longitude': position.longitude,
-        },
+        }
+      };
+
+      await userDoc.update({
+        'mesPlantes': FieldValue.arrayUnion([plantData])
       });
 
       if (!mounted) return;
@@ -183,131 +150,69 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         MaterialPageRoute(builder: (_) => const DashboardScreen()),
       );
     } catch (e) {
-      Fluttertoast.showToast(msg: "Erreur sauvegarde : $e");
+      Fluttertoast.showToast(msg: "Erreur Firestore : $e");
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  Widget _buildImagePickerSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (_pickedImage != null)
-          Stack(
-            children: [
-              Image.file(_pickedImage!, height: 200, fit: BoxFit.cover),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: GestureDetector(
-                  onTap: () => setState(() => _pickedImage = null),
-                  child: const CircleAvatar(
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.close, color: Colors.red),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        const SizedBox(height: 12),
-        ElevatedButton.icon(
-          onPressed: _pickImageFromGallery,
-          icon: const Icon(Icons.camera_alt),
-          label: const Text("Scanner ma plante"),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-        ),
-        const SizedBox(height: 12),
-        const Text("Ou entrez manuellement les informations :",
-            style: TextStyle(fontWeight: FontWeight.bold)),
-        ElevatedButton.icon(
-          onPressed: _uploadImageOnly,
-          icon: Icon(Icons.upload_file),
-          label: Text("Uploader l'image"),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-        ),
-        ElevatedButton.icon(
-          onPressed: _triggerPlantIdentification,
-          icon: Icon(Icons.search),
-          label: Text("Identifier plante"),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          "Vous pouvez aussi utiliser l'IA pour identifier la plante.",
-          style: TextStyle(fontStyle: FontStyle.italic),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFormSection() {
-    return Column(
-      children: [
-        CheckboxListTile(
-          title: const Text("La plante est en extérieur"),
-          value: _isOutdoor,
-          onChanged: (v) => setState(() => _isOutdoor = v ?? false),
-        ),
-        TextFormField(
-          controller: _nameController,
-          decoration: const InputDecoration(labelText: 'Nom'),
-          validator: (v) => v!.isEmpty ? "Nom requis" : null,
-        ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: _roomController,
-          decoration: const InputDecoration(labelText: 'Niveau d’eau'),
-        ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: _humidityController,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Humidité (%)'),
-        ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: _tempController,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Température (°C)'),
-        ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: _detailsController,
-          maxLines: 3,
-          decoration: const InputDecoration(labelText: 'Détails (besoins, sol, exposition...)'),
-        ),
-      ],
-    );
-  }
-
   @override
-  Widget build(BuildContext ctx) {
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Ajouter une plante"),
-        backgroundColor: Colors.green,
-      ),
+      appBar: AppBar(title: const Text('Ajouter une plante')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildImagePickerSection(),
-              const Divider(),
-              _buildFormSection(),
-              const SizedBox(height: 24),
+              if (_pickedImage != null)
+                Image.file(_pickedImage!, height: 200, fit: BoxFit.cover),
+              ElevatedButton.icon(
+                onPressed: _pickImage,
+                icon: const Icon(Icons.image),
+                label: const Text("Choisir une image"),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: _triggerPlantIdentification,
+                icon: const Icon(Icons.search),
+                label: const Text("Identifier via IA"),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(labelText: "Nom de la plante"),
+                onFieldSubmitted: (value) => _searchPlantByName(value),
+              ),
+              const SizedBox(height: 12),
+              if (_foundPlantData != null)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Informations trouvées :", style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text("Nom : ${_foundPlantData!['name'] ?? '-'}"),
+                    Text("Détails : ${_foundPlantData!['details'] ?? '-'}"),
+                    if (_foundPlantData!['imageUrl'] != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Image.network(_foundPlantData!['imageUrl'], height: 120),
+                      ),
+                  ],
+                ),
+              CheckboxListTile(
+                title: const Text("Plante en extérieur"),
+                value: _isOutdoor,
+                onChanged: (v) => setState(() => _isOutdoor = v ?? false),
+              ),
+              const SizedBox(height: 20),
               _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton.icon(
+                      onPressed: _submit,
                       icon: const Icon(Icons.save),
                       label: const Text("Enregistrer"),
-                      onPressed: _submitPlant,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green.shade700,
-                      ),
                     ),
             ],
           ),

@@ -8,7 +8,6 @@ class PlantData {
   });
 }
 
-// Exemple d’une plante connue (hibiscus)
 final List<PlantData> plantsData = [
   PlantData(
     name: 'hibiscus',
@@ -26,6 +25,5 @@ final List<PlantData> plantsData = [
       'Zone de Culture': '9b à 12 (voir carte de rusticité en France 9b à 10)',
     },
   ),
-
   // 🔁 Tu pourras ajouter ici d’autres entrées similaires si besoin
 ];
