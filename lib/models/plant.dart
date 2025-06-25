@@ -39,9 +39,8 @@ class Plant {
       userId: data['userId'] ?? '',
       isOutdoor: data['isOutdoor'] ?? false,
       latitude: (data['latitude'] as num?)?.toDouble(),
-      createdAt: data['createdAt'] is Timestamp
-          ? (data['createdAt'] as Timestamp).toDate()
-          : data['createdAt'] as DateTime,
+      longitude: (data['longitude'] as num?)?.toDouble(),
+      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 

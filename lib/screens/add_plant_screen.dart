@@ -1,5 +1,3 @@
-// FICHIER: add_plant_screen.dart
-
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -24,8 +22,10 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   final _roomController = TextEditingController();
   final _humidityController = TextEditingController();
   final _tempController = TextEditingController();
+  final _detailsController = TextEditingController();
 
   File? _pickedImage;
+  String? _uploadedImageUrl;
   bool _isOutdoor = false;
   bool _isLoading = false;
 
@@ -40,40 +40,94 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     }
 
     setState(() => _pickedImage = file);
-    await _identifyPlantFromImage(file);
+    await _triggerPlantIdentification();
   }
 
   Future<String?> _uploadImageToStorage(File imageFile) async {
+    if (_uploadedImageUrl != null) return _uploadedImageUrl;
+
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       final ref = FirebaseStorage.instance
           .ref()
           .child('plants/${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
       await ref.putFile(imageFile);
-      return await ref.getDownloadURL();
+      final url = await ref.getDownloadURL();
+      _uploadedImageUrl = url;
+      return url;
     } catch (e) {
       debugPrint('Upload failed: $e');
       return null;
     }
   }
 
-  Future<void> _identifyPlantFromImage(File image) async {
+  Future<void> _uploadImageOnly() async {
+    if (_pickedImage == null) {
+      Fluttertoast.showToast(msg: "Veuillez sélectionner une image d'abord");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final url = await _uploadImageToStorage(_pickedImage!);
+    if (url != null) {
+      Fluttertoast.showToast(msg: "Image uploadée avec succès.");
+    } else {
+      Fluttertoast.showToast(msg: "Échec de l'upload.");
+    }
+
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _triggerPlantIdentification() async {
+    if (_pickedImage == null) {
+      Fluttertoast.showToast(msg: "Veuillez d'abord choisir une image");
+      return;
+    }
+
     try {
+      setState(() => _isLoading = true);
       final uri = Uri.parse('http://172.30.192.1:8000/plantid/identify/');
       final request = http.MultipartRequest('POST', uri)
-        ..files.add(await http.MultipartFile.fromPath('image', image.path));
+        ..files.add(await http.MultipartFile.fromPath('image', _pickedImage!.path));
+
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        _nameController.text = data['plantName'];
-        Fluttertoast.showToast(msg: 'Plante reconnue : ${data['plantName']}');
+        final plantName = data['plant_name'];
+        if (plantName != null) {
+          _nameController.text = plantName;
+          Fluttertoast.showToast(msg: "Plante reconnue : $plantName");
+          await _fetchPlantData(plantName);
+        } else {
+          Fluttertoast.showToast(msg: "Aucune plante identifiée");
+        }
       } else {
-        throw Exception('Erreur ${response.statusCode}');
+        Fluttertoast.showToast(msg: "Erreur ${response.statusCode}");
       }
     } catch (e) {
-      Fluttertoast.showToast(msg: 'Erreur IA : $e');
+      Fluttertoast.showToast(msg: "Erreur IA : $e");
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchPlantData(String name) async {
+    try {
+      final response = await http.get(
+        Uri.parse("http://172.30.192.1:8000/plantid/scrap/?name=$name"),
+      );
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final detail = json['data'] ?? '';
+        _detailsController.text = detail;
+      } else {
+        Fluttertoast.showToast(msg: "Données introuvables pour $name");
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Erreur fetch détails : $e");
     }
   }
 
@@ -112,6 +166,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         'dist': _roomController.text.trim(),
         'humidity': _humidityController.text.trim(),
         'temp': _tempController.text.trim(),
+        'details': _detailsController.text.trim(),
         'imageUrl': imageUrl ?? '',
         'userId': uid,
         'createdAt': FieldValue.serverTimestamp(),
@@ -165,6 +220,23 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         const SizedBox(height: 12),
         const Text("Ou entrez manuellement les informations :",
             style: TextStyle(fontWeight: FontWeight.bold)),
+        ElevatedButton.icon(
+          onPressed: _uploadImageOnly,
+          icon: Icon(Icons.upload_file),
+          label: Text("Uploader l'image"),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+        ),
+        ElevatedButton.icon(
+          onPressed: _triggerPlantIdentification,
+          icon: Icon(Icons.search),
+          label: Text("Identifier plante"),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          "Vous pouvez aussi utiliser l'IA pour identifier la plante.",
+          style: TextStyle(fontStyle: FontStyle.italic),
+        ),
       ],
     );
   }
@@ -198,6 +270,12 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
           controller: _tempController,
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(labelText: 'Température (°C)'),
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _detailsController,
+          maxLines: 3,
+          decoration: const InputDecoration(labelText: 'Détails (besoins, sol, exposition...)'),
         ),
       ],
     );

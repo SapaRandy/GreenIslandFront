@@ -4,9 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'plant_detail_screen.dart';
 import 'add_plant_screen.dart';
+import 'add_plant_screen.dart' as add_plant;
 import 'profile_screen.dart';
 import '../models/plant.dart';
-import '../models/plants_data.dart'; // ✅ Import des données enrichies
+import '../models/plants_data.dart'; // Import des données enrichies
 import '../widgets/plant_card.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -27,7 +28,7 @@ class HomeScreen extends StatelessWidget {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                MaterialPageRoute(builder: (_) => const add_plant.AddPlantScreen()),
               );
             },
           ),
@@ -35,7 +36,7 @@ class HomeScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // ✅ Actions rapides
+          // Actions rapides
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: Row(
@@ -60,7 +61,7 @@ class HomeScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const AddPlantScreen()),
+                      MaterialPageRoute(builder: (_) => const add_plant.AddPlantScreen()),
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -75,7 +76,7 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
 
-          // ✅ Liste dynamique des plantes (Firestore)
+          // Liste dynamique des plantes (Firestore)
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -106,7 +107,7 @@ class HomeScreen extends StatelessWidget {
                     final plant = Plant.fromMap(data, plantDocs[index].id);
 
                     final enriched = plantsData.firstWhere(
-                      (p) => p.name.toLowerCase() == plant.name.toLowerCase(),
+                      (p) => p.name.trim().toLowerCase() == plant.name.trim().toLowerCase(),
                       orElse: () => PlantData(name: '', details: {}),
                     );
 
@@ -119,7 +120,7 @@ class HomeScreen extends StatelessWidget {
                           MaterialPageRoute(
                             builder: (_) => PlantDetailScreen(
                               plantId: plant.id,
-                              initialImageUrl: plant.imageUrl ?? '',
+                              initialImageUrl: plant.imageUrl,
                             ),
                           ),
                         );

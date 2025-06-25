@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'plant_detail_screen.dart';
-import 'add_plant_screen.dart';
+import 'add_plant_screen.dart' as add_plant;
 import 'sensor_screen.dart';
 import 'profile_screen.dart';
 
@@ -12,7 +12,7 @@ class DashboardScreen extends StatelessWidget {
   void _addPlant(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const AddPlantScreen()),
+      MaterialPageRoute(builder: (_) => const add_plant.AddPlantScreen()),
     );
   }
 
