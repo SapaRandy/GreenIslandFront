@@ -8,6 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:http/http.dart' as http;
+import 'package:smartplant_app/screens/home_screen.dart';
 import 'dashboard_screen.dart';
 
 class AddPlantScreen extends StatefulWidget {
@@ -82,17 +83,30 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   Future<void> _searchPlantByName(String name) async {
     if (name.trim().isEmpty) return;
     setState(() => _isLoading = true);
+
     try {
-      final result = await FirebaseFirestore.instance
+      final allDocs = await FirebaseFirestore.instance
           .collection('plants_data')
-          .where('name', isEqualTo: name.trim())
-          .limit(1)
           .get();
 
-      if (result.docs.isNotEmpty) {
-        setState(() => _foundPlantData = result.docs.first.data());
+      final queryLower = name.trim().toLowerCase();
+
+      QueryDocumentSnapshot<Map<String, dynamic>>? match;
+      try {
+        match = allDocs.docs.firstWhere(
+          (doc) {
+            final plantName = (doc['name'] ?? '').toString().toLowerCase();
+            return plantName.contains(queryLower);
+          },
+        );
+      } catch (e) {
+        match = null;
+      }
+
+      if (match != null) {
+        setState(() => _foundPlantData = match!.data());
       } else {
-        Fluttertoast.showToast(msg: "Plante non trouvée dans la base.");
+        Fluttertoast.showToast(msg: "Plante non trouvée.");
         setState(() => _foundPlantData = null);
       }
     } catch (e) {
@@ -101,6 +115,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       setState(() => _isLoading = false);
     }
   }
+
 
   Future<void> _submit() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -148,7 +163,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       });
 
       if (!mounted) return;
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
     } catch (e) {
       Fluttertoast.showToast(msg: "Erreur Firestore : $e");
     } finally {
