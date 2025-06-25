@@ -1,132 +1,133 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
-import '../models/plant.dart';
-import '../models/plants_data.dart';
 
-class PlantDetailScreen extends StatelessWidget {
-  final String plantId;
-  final String initialImageUrl;
+class PlantDetailScreen extends StatefulWidget {
+  final Map<String, dynamic> plantData;
+  const PlantDetailScreen({super.key, required this.plantData});
 
-  const PlantDetailScreen({
-    super.key,
-    required this.plantId,
-    required this.initialImageUrl,
-  });
+  @override
+  State<PlantDetailScreen> createState() => _PlantDetailScreenState();
+}
 
-  Future<Plant?> fetchPlant() async {
+class _PlantDetailScreenState extends State<PlantDetailScreen> {
+  late Map<String, dynamic> _plant;
+  bool _isLoading = false;
+  List<Map<String, dynamic>> _careLogs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _plant = widget.plantData;
+    _loadCareLogs();
+  }
+
+  Future<void> _loadCareLogs() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || _plant['name'] == null) return;
+    final logsSnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('careLogs')
+        .where('plantName', isEqualTo: _plant['name'])
+        .orderBy('timestamp', descending: true)
+        .get();
+
+    setState(() {
+      _careLogs = logsSnapshot.docs.map((d) => d.data()).toList();
+    });
+  }
+
+  Future<void> _triggerWatering() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || _plant['name'] == null) return;
+
+    setState(() => _isLoading = true);
     try {
-      final doc = await FirebaseFirestore.instance.collection('plants').doc(plantId).get();
-      if (doc.exists) {
-        return Plant.fromMap(doc.data()!, doc.id);
-      }
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('careLogs')
+          .add({
+        'plantName': _plant['name'],
+        'action': 'Arrosage',
+        'timestamp': Timestamp.now(),
+      });
+      Fluttertoast.showToast(msg: "Arrosage enregistré !");
+      _loadCareLogs();
     } catch (e) {
-      debugPrint("Erreur chargement plante: $e");
+      Fluttertoast.showToast(msg: "Erreur arrosage : $e");
+    } finally {
+      setState(() => _isLoading = false);
     }
-    return null;
   }
 
   @override
   Widget build(BuildContext context) {
+    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
+    final temperature = _plant['temp'] ?? '--';
+    final humidity = _plant['humidity'] ?? '--';
+    final dist = _plant['dist'] ?? '--';
+    final lat = _plant['latitude'];
+    final lng = _plant['longitude'];
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Détails de la plante"),
-        backgroundColor: Colors.green,
-      ),
-      body: FutureBuilder<Plant?>(
-        future: fetchPlant(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data == null) {
-            return const Center(child: Text("Plante introuvable"));
-          }
-
-          final plant = snapshot.data!;
-          final enriched = plantsData.firstWhere(
-            (p) => p.name.toLowerCase() == plant.name.toLowerCase(),
-            orElse: () => PlantData(name: '', details: {}),
-          );
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (plant.imageUrl.isNotEmpty)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      plant.imageUrl,
-                      height: 220,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                    ),
+      appBar: AppBar(title: Text(_plant['name'] ?? 'Plante')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_plant['imageUrl'] != null)
+              Image.network(_plant['imageUrl'], height: 180, fit: BoxFit.cover),
+            const SizedBox(height: 12),
+            Text('Détails : ${_plant['details'] ?? '-'}'),
+            Text('Température : $temperature °C'),
+            Text('Humidité : $humidity %'),
+            Text('Niveau d’eau : $dist'),
+            if (lat != null && lng != null)
+              SizedBox(
+                height: 200,
+                child: GoogleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: LatLng(lat, lng),
+                    zoom: 15,
                   ),
-                const SizedBox(height: 16),
-                Text(plant.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text("Créée le: ${DateFormat('dd MMM yyyy').format(plant.createdAt)}"),
-                const Divider(height: 24),
-
-                Row(
-                  children: [
-                    _buildBadge("💧 Eau", plant.dist),
-                    const SizedBox(width: 12),
-                    _buildBadge("🌡 Temp", "${plant.temp} °C"),
-                    const SizedBox(width: 12),
-                    _buildBadge("💦 Humidité", "${plant.humidity} %"),
-                  ],
+                  markers: {
+                    Marker(
+                      markerId: const MarkerId('plant_location'),
+                      position: LatLng(lat, lng),
+                    ),
+                  },
                 ),
-
-                const SizedBox(height: 24),
-                if (enriched.details.isNotEmpty) ...[
-                  const Text("📘 Informations botaniques :", style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  ...enriched.details.entries.map(
-                    (e) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("• ", style: TextStyle(fontSize: 16)),
-                          Expanded(
-                            child: RichText(
-                              text: TextSpan(
-                                style: const TextStyle(color: Colors.black),
-                                children: [
-                                  TextSpan(
-                                    text: "${e.key} : ",
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                  TextSpan(text: e.value),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ] else
-                  const Text("Pas de données botaniques enrichies disponibles.", style: TextStyle(fontStyle: FontStyle.italic)),
-              ],
+              ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: _isLoading ? null : _triggerWatering,
+              icon: const Icon(Icons.water_drop),
+              label: const Text("Arroser la plante"),
             ),
-          );
-        },
+            const SizedBox(height: 16),
+            const Text("Historique de soins", style: TextStyle(fontWeight: FontWeight.bold)),
+            if (_careLogs.isEmpty)
+              const Text("Aucun soin enregistré."),
+            for (final log in _careLogs)
+              ListTile(
+                leading: const Icon(Icons.event_note),
+                title: Text(log['action'] ?? '-'),
+                subtitle: Text(dateFormat.format((log['timestamp'] as Timestamp).toDate())),
+              ),
+          ],
+        ),
       ),
-    );
-  }
-
-  Widget _buildBadge(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.green.shade100,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text("$label : $value", style: const TextStyle(fontSize: 14)),
     );
   }
 }

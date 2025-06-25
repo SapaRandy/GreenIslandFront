@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'plant_detail_screen.dart';
-import 'add_plant_screen.dart';
 import 'add_plant_screen.dart' as add_plant;
 import 'profile_screen.dart';
 import '../models/plant.dart';
@@ -80,8 +79,9 @@ class HomeScreen extends StatelessWidget {
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('plants')
-                  .where('userId', isEqualTo: userId)
+                  .collection('users')
+                  .doc(userId)
+                  .collection('mesPlantes')
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -119,8 +119,7 @@ class HomeScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => PlantDetailScreen(
-                              plantId: plant.id,
-                              initialImageUrl: plant.imageUrl,
+                              plantData: data,
                             ),
                           ),
                         );

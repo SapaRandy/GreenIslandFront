@@ -1,4 +1,5 @@
 // FICHIER : models/plant_model.dart
+// FICHIER : models/plant_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Plant {
