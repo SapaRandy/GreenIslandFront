@@ -22,7 +22,6 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   final _nameController = TextEditingController();
   bool _isOutdoor = false;
   File? _pickedImage;
-  String? _uploadedImageUrl;
   bool _isLoading = false;
   Map<String, dynamic>? _foundPlantData;
 
@@ -40,8 +39,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
           .ref()
           .child('plants/${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
       await ref.putFile(imageFile);
-      final url = await ref.getDownloadURL();
-      return url;
+      return await ref.getDownloadURL();
     } catch (e) {
       Fluttertoast.showToast(msg: "Échec upload image : $e");
       return null;
@@ -49,7 +47,10 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   }
 
   Future<void> _triggerPlantIdentification() async {
-    if (_pickedImage == null) return;
+    if (_pickedImage == null) {
+      Fluttertoast.showToast(msg: "Aucune image sélectionnée");
+      return;
+    }
     setState(() => _isLoading = true);
     try {
       final uri = Uri.parse('http://172.30.192.1:8000/plantid/identify/');
@@ -79,11 +80,12 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   }
 
   Future<void> _searchPlantByName(String name) async {
+    if (name.trim().isEmpty) return;
     setState(() => _isLoading = true);
     try {
       final result = await FirebaseFirestore.instance
           .collection('plants_data')
-          .where('name', isEqualTo: name)
+          .where('name', isEqualTo: name.trim())
           .limit(1)
           .get();
 
@@ -131,6 +133,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       final userDoc = FirebaseFirestore.instance.collection('users').doc(uid);
       final plantData = {
         ..._foundPlantData!,
+        'name': _nameController.text.trim(),
         'imageUrl': imageUrl ?? _foundPlantData!['imageUrl'] ?? '',
         'addedAt': FieldValue.serverTimestamp(),
         'isOutdoor': _isOutdoor,
@@ -145,10 +148,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       });
 
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const DashboardScreen()),
-      );
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DashboardScreen()));
     } catch (e) {
       Fluttertoast.showToast(msg: "Erreur Firestore : $e");
     } finally {
@@ -184,14 +184,18 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: "Nom de la plante"),
-                onFieldSubmitted: (value) => _searchPlantByName(value),
+              ),
+              ElevatedButton.icon(
+                onPressed: () => _searchPlantByName(_nameController.text),
+                icon: const Icon(Icons.search),
+                label: const Text("Rechercher par nom"),
               ),
               const SizedBox(height: 12),
               if (_foundPlantData != null)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("Informations trouvées :", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text("Informations trouvées :", style: TextStyle(fontWeight: FontWeight.bold)),
                     Text("Nom : ${_foundPlantData!['name'] ?? '-'}"),
                     Text("Détails : ${_foundPlantData!['details'] ?? '-'}"),
                     if (_foundPlantData!['imageUrl'] != null)

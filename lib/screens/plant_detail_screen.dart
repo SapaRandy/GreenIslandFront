@@ -1,130 +1,160 @@
-import 'dart:io';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:fluttertoast/fluttertoast.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+import '../models/plant.dart';
 
 class PlantDetailScreen extends StatefulWidget {
-  final Map<String, dynamic> plantData;
-  const PlantDetailScreen({super.key, required this.plantData});
+  final String plantId;
+  final String initialImageUrl;
+
+  const PlantDetailScreen({
+    super.key,
+    required this.plantId,
+    required this.initialImageUrl, required Plant plant,
+  });
 
   @override
   State<PlantDetailScreen> createState() => _PlantDetailScreenState();
 }
 
 class _PlantDetailScreenState extends State<PlantDetailScreen> {
-  late Map<String, dynamic> _plant;
-  bool _isLoading = false;
-  List<Map<String, dynamic>> _careLogs = [];
+  Plant? _plant;
+  List<Map<String, dynamic>> _careHistory = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _plant = widget.plantData;
-    _loadCareLogs();
+    _loadPlantDetails();
   }
 
-  Future<void> _loadCareLogs() async {
+  Future<void> _loadPlantDetails() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || _plant['name'] == null) return;
-    final logsSnapshot = await FirebaseFirestore.instance
+    if (uid == null) return;
+
+    final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final List<dynamic> myPlants = userDoc.data()?['mesPlantes'] ?? [];
+
+    final found = myPlants.cast<Map<String, dynamic>>().firstWhere(
+      (p) => p['id'] == widget.plantId,
+      orElse: () => {},
+    );
+
+    if (found.isEmpty) return;
+
+    final historySnap = await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
-        .collection('careLogs')
-        .where('plantName', isEqualTo: _plant['name'])
-        .orderBy('timestamp', descending: true)
+        .collection('mesPlantes')
+        .doc(widget.plantId)
+        .collection('soins')
+        .orderBy('date', descending: true)
         .get();
 
     setState(() {
-      _careLogs = logsSnapshot.docs.map((d) => d.data()).toList();
+      _plant = Plant.fromMap(found, widget.plantId);
+      _careHistory = historySnap.docs.map((d) => d.data()).toList();
+      _isLoading = false;
     });
   }
 
   Future<void> _triggerWatering() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || _plant['name'] == null) return;
+    if (uid == null || _plant == null) return;
 
-    setState(() => _isLoading = true);
-    try {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('careLogs')
-          .add({
-        'plantName': _plant['name'],
-        'action': 'Arrosage',
-        'timestamp': Timestamp.now(),
-      });
-      Fluttertoast.showToast(msg: "Arrosage enregistré !");
-      _loadCareLogs();
-    } catch (e) {
-      Fluttertoast.showToast(msg: "Erreur arrosage : $e");
-    } finally {
-      setState(() => _isLoading = false);
-    }
+    final now = DateTime.now();
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('mesPlantes')
+        .doc(widget.plantId)
+        .collection('soins')
+        .add({
+      'type': 'Arrosage',
+      'date': now,
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('🌿 Arrosage déclenché')),
+    );
+
+    _loadPlantDetails();
   }
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('dd/MM/yyyy HH:mm');
-    final temperature = _plant['temp'] ?? '--';
-    final humidity = _plant['humidity'] ?? '--';
-    final dist = _plant['dist'] ?? '--';
-    final lat = _plant['latitude'];
-    final lng = _plant['longitude'];
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (_plant == null) {
+      return const Scaffold(body: Center(child: Text("Plante introuvable.")));
+    }
 
     return Scaffold(
-      appBar: AppBar(title: Text(_plant['name'] ?? 'Plante')),
+      appBar: AppBar(title: Text(_plant!.name)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (_plant['imageUrl'] != null)
-              Image.network(_plant['imageUrl'], height: 180, fit: BoxFit.cover),
+            if (_plant!.imageUrl.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(_plant!.imageUrl, height: 200, fit: BoxFit.cover),
+              ),
             const SizedBox(height: 12),
-            Text('Détails : ${_plant['details'] ?? '-'}'),
-            Text('Température : $temperature °C'),
-            Text('Humidité : $humidity %'),
-            Text('Niveau d’eau : $dist'),
-            if (lat != null && lng != null)
-              SizedBox(
-                height: 200,
-                child: GoogleMap(
-                  initialCameraPosition: CameraPosition(
-                    target: LatLng(lat, lng),
-                    zoom: 15,
-                  ),
-                  markers: {
-                    Marker(
-                      markerId: const MarkerId('plant_location'),
-                      position: LatLng(lat, lng),
+            Text("💧 Eau : ${_plant!.dist}", style: const TextStyle(fontSize: 16)),
+            Text("🌡️ Température : ${_plant!.temp}°C", style: const TextStyle(fontSize: 16)),
+            Text("💦 Humidité : ${_plant!.humidity}", style: const TextStyle(fontSize: 16)),
+            if (_plant!.latitude != null && _plant!.longitude != null)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 12),
+                  const Text("📍 Localisation", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  SizedBox(
+                    height: 150,
+                    child: GoogleMap(
+                      initialCameraPosition: CameraPosition(
+                        target: LatLng(_plant!.latitude!, _plant!.longitude!),
+                        zoom: 14,
+                      ),
+                      markers: {
+                        Marker(
+                          markerId: MarkerId(_plant!.id),
+                          position: LatLng(_plant!.latitude!, _plant!.longitude!),
+                        )
+                      },
+                      zoomControlsEnabled: false,
+                      liteModeEnabled: true,
                     ),
-                  },
-                ),
+                  ),
+                ],
               ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _isLoading ? null : _triggerWatering,
-              icon: const Icon(Icons.water_drop),
-              label: const Text("Arroser la plante"),
-            ),
             const SizedBox(height: 16),
-            const Text("Historique de soins", style: TextStyle(fontWeight: FontWeight.bold)),
-            if (_careLogs.isEmpty)
-              const Text("Aucun soin enregistré."),
-            for (final log in _careLogs)
-              ListTile(
-                leading: const Icon(Icons.event_note),
-                title: Text(log['action'] ?? '-'),
-                subtitle: Text(dateFormat.format((log['timestamp'] as Timestamp).toDate())),
-              ),
+            ElevatedButton.icon(
+              onPressed: _triggerWatering,
+              icon: const Icon(Icons.water_drop),
+              label: const Text("Arroser maintenant"),
+            ),
+            const SizedBox(height: 24),
+            const Text("🕓 Historique des soins", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            ..._careHistory.map((entry) {
+              final date = (entry['date'] as Timestamp).toDate();
+              final formatted = DateFormat('dd/MM/yyyy HH:mm').format(date);
+              return ListTile(
+                leading: const Icon(Icons.local_florist),
+                title: Text(entry['type'] ?? 'Soins'),
+                subtitle: Text(formatted),
+              );
+            }),
+            if (_careHistory.isEmpty) const Text("Aucun soin enregistré."),
           ],
         ),
       ),
