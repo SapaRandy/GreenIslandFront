@@ -2,7 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-
+import '../models/plants_data.dart';
+import '../models/plant.dart';
 
 class PlantDetailScreen extends StatelessWidget {
   final String plantId;
@@ -47,7 +48,7 @@ class PlantDetailScreen extends StatelessWidget {
       } catch (e) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text("Erreur : ${e.toString()}")));
+        ).showSnackBar(SnackBar(content: Text("Erreur : \${e.toString()}")));
       }
     }
   }
@@ -62,11 +63,11 @@ class PlantDetailScreen extends StatelessWidget {
       );
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('$action ajouté à l’historique')));
+      ).showSnackBar(SnackBar(content: Text('\$action ajouté à l’historique')));
     } catch (e) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Erreur ajout soin : $e')));
+      ).showSnackBar(SnackBar(content: Text('Erreur ajout soin : \$e')));
     }
   }
 
@@ -98,23 +99,24 @@ class PlantDetailScreen extends StatelessWidget {
           }
 
           final data = snapshot.data!.data() as Map<String, dynamic>;
+          final plant = Plant.fromMap(data, snapshot.data!.id);
+          final String name = plant.name;
+          final String dist = plant.dist ?? '-';
+          final String humidity = plant.humidity ?? '-';
+          final String temp = plant.temp ?? '-';
+          final String imageUrl = plant.imageUrl ?? initialImageUrl;
+          final double? latitude = plant.latitude;
+          final double? longitude = plant.longitude;
+          final List<Map<String, dynamic>> careLogs = (data['careLogs'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? [];
 
-          final String name = data['name'] ?? 'Nom inconnu';
-          final String dist = data['dist'] ?? '-';
-          final String humidity = data['humidity'] ?? '-';
-          final String temp = data['temp'] ?? '-';
-          final String imageUrl = data['imageUrl'] ?? '';
-          final double? latitude = data['latitude'] is double
-              ? data['latitude']
-              : null;
-          final double? longitude = data['longitude'] is double
-              ? data['longitude']
-              : null;
-
-          final List<dynamic> careLogsRaw = data['careLogs'] ?? [];
-          final List<Map<String, dynamic>> careLogs = careLogsRaw
-              .whereType<Map<String, dynamic>>()
-              .toList();
+          PlantData? plantData;
+          try {
+            plantData = plantsData.firstWhere(
+              (p) => p.name.toLowerCase() == name.toLowerCase(),
+            );
+          } catch (e) {
+            plantData = null;
+          }
 
           return SingleChildScrollView(
             child: Column(
@@ -122,7 +124,7 @@ class PlantDetailScreen extends StatelessWidget {
               children: [
                 Image.network(
                   imageUrl.isNotEmpty
-                      ? '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}'
+                      ? '\$imageUrl?t=\${DateTime.now().millisecondsSinceEpoch}'
                       : 'https://via.placeholder.com/150?text=Plante',
                   height: 250,
                   fit: BoxFit.cover,
@@ -145,46 +147,58 @@ class PlantDetailScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text("Niveau eau : $dist"),
-                      Text("Température : $temp°C"),
-                      Text("Humidité : $humidity%"),
+                      if (plantData != null) ...[
+                        Text("Nom botanique : \${plantData.detail['nom_botanique'] ?? '-'}"),
+                        Text("Type : \${plantData.detail['type'] ?? '-'}"),
+                        Text("Lumière : \${plantData.detail['lumiere'] ?? '-'}"),
+                        Text("Température idéale : \${plantData.detail['temp_ideale'] ?? '-'}"),
+                        Text("Arrosage : \${plantData.detail['arrosage'] ?? '-'}"),
+                        Text("Engrais : \${plantData.detail['engrais'] ?? '-'}"),
+                      ] else ...[
+                        Text("Niveau eau : \$dist"),
+                        Text("Température : \$temp°C"),
+                        Text("Humidité : \$humidity%"),
+                      ],
                       const SizedBox(height: 12),
-
                       if (latitude != null && longitude != null)
-                      SizedBox(
-                        height: 200,
-                        child: FlutterMap(
-                          options: MapOptions(
-                            center: LatLng(latitude, longitude),
-                            zoom: 15,
+                        SizedBox(
+                          height: 200,
+                          child: FlutterMap(
+                            options: MapOptions(
+                              center: LatLng(latitude, longitude),
+                              zoom: 15,
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate:
+                                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                userAgentPackageName: 'com.company.smart_app',
+                              ),
+                              MarkerLayer(
+                                markers: [
+                                  Marker(
+                                    point: LatLng(latitude, longitude),
+                                    width: 40,
+                                    height: 40,
+                                    child: const Icon(
+                                      Icons.location_on,
+                                      color: Colors.red,
+                                      size: 40,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                          children: [
-                            TileLayer(
-                              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                              userAgentPackageName: 'com.company.smart_app',
-                            ),
-                            MarkerLayer(
-                              markers: [
-                                Marker(
-                                  point: LatLng(latitude, longitude),
-                                  width: 40,
-                                  height: 40,
-                                  child: const Icon(Icons.location_on, color: Colors.red, size: 40),
-                                ),
-                              ],
-                            ),
+                        )
+                      else
+                        Row(
+                          children: const [
+                            Icon(Icons.location_off, color: Colors.grey),
+                            SizedBox(width: 6),
+                            Text("Localisation non disponible"),
                           ],
                         ),
-                      )
-                    else
-                      Row(
-                        children: const [
-                          Icon(Icons.location_off, color: Colors.grey),
-                          SizedBox(width: 6),
-                          Text("Localisation non disponible"),
-                        ],
-                      ),
-
                       const SizedBox(height: 24),
                       const Text(
                         "Historique des soins :",
@@ -206,7 +220,6 @@ class PlantDetailScreen extends StatelessWidget {
                             subtitle: Text(date.toString()),
                           );
                         }),
-
                       const SizedBox(height: 24),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,

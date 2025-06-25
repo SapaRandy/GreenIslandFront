@@ -6,6 +6,7 @@ import 'plant_detail_screen.dart';
 import 'add_plant_screen.dart';
 import 'profile_screen.dart';
 import '../models/plant.dart';
+import '../models/plants_data.dart'; // ✅ Import des données enrichies
 import '../widgets/plant_card.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -102,10 +103,16 @@ class HomeScreen extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemBuilder: (context, index) {
                     final data = plantDocs[index].data() as Map<String, dynamic>;
-                    final plant = Plant.fromMap(plantDocs[index].id, data);
+                    final plant = Plant.fromMap(data, plantDocs[index].id);
+
+                    final enriched = plantsData.firstWhere(
+                      (p) => p.name.toLowerCase() == plant.name.toLowerCase(),
+                      orElse: () => PlantData(name: '', details: {}),
+                    );
 
                     return PlantCard(
                       plant: plant,
+                      enrichedDetails: enriched,
                       onTap: () {
                         Navigator.push(
                           context,

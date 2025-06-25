@@ -1,62 +1,62 @@
+// FICHIER : models/plant_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Plant {
   final String id;
-  final String? userId;
-  final Timestamp? createdAt;
   final String name;
+  final String dist;
   final String humidity;
   final String temp;
-  final String? dist;
-  final String? imageUrl;
+  final String imageUrl;
+  final String userId;
+  final bool isOutdoor;
   final double? latitude;
   final double? longitude;
-  final List<Map<String, dynamic>>? careLogs;
+  final DateTime createdAt;
 
   Plant({
     required this.id,
     required this.name,
+    required this.dist,
     required this.humidity,
     required this.temp,
-    this.userId,
-    this.createdAt,
-    this.dist,
-    this.imageUrl,
+    required this.imageUrl,
+    required this.userId,
+    required this.isOutdoor,
+    required this.createdAt,
     this.latitude,
     this.longitude,
-    this.careLogs,
   });
 
-  factory Plant.fromMap(String docId, Map<String, dynamic> map) {
+  factory Plant.fromMap(Map<String, dynamic> data, String documentId) {
     return Plant(
-      id: docId,
-      userId: map['userId']?.toString(),
-      createdAt: map['createdAt'] as Timestamp?,
-      name: (map['name'] ?? '').toString().trim(),
-      humidity: (map['humidity'] ?? '').toString().trim(),
-      temp: (map['temp'] ?? '').toString().trim(),
-      dist: map['room']?.toString().trim(),
-      imageUrl: map['imageUrl']?.toString().trim(),
-      latitude: (map['latitude'] != null) ? (map['latitude'] as num).toDouble() : null,
-      longitude: (map['longitude'] != null) ? (map['longitude'] as num).toDouble() : null,
-      careLogs: map['careLogs'] != null
-          ? List<Map<String, dynamic>>.from(map['careLogs'])
-          : null,
+      id: documentId,
+      name: data['name'] ?? '',
+      dist: data['dist'] ?? '',
+      humidity: data['humidity'] ?? '',
+      temp: data['temp'] ?? '',
+      imageUrl: data['imageUrl'] ?? '',
+      userId: data['userId'] ?? '',
+      isOutdoor: data['isOutdoor'] ?? false,
+      latitude: (data['latitude'] as num?)?.toDouble(),
+      createdAt: data['createdAt'] is Timestamp
+          ? (data['createdAt'] as Timestamp).toDate()
+          : data['createdAt'] as DateTime,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'name': name,
+      'dist': dist,
       'humidity': humidity,
       'temp': temp,
-      'dist': dist,
       'imageUrl': imageUrl,
       'userId': userId,
-      'createdAt': createdAt,
+      'isOutdoor': isOutdoor,
       'latitude': latitude,
       'longitude': longitude,
-      'careLogs': careLogs,
+      'createdAt': createdAt,
     };
   }
 }
