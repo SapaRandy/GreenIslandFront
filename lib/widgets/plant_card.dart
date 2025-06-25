@@ -17,8 +17,8 @@ class PlantCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final subtitle = enrichedDetails != null && enrichedDetails!.details.isNotEmpty
-        ? '🌱 Origine : ${enrichedDetails!.details['origine'] ?? 'Inconnue'}'
-        : '💧 Eau : ${plant.dist ?? 'N/A'} - 🌡️ Temp : ${plant.temp ?? 'N/A'}°C';
+        ? '🌱 Origine : ${enrichedDetails!.details['Origine'] ?? 'Inconnue'}'
+        : '💧 Eau : ${plant.dist} - 🌡️ Temp : ${plant.temp}°C';
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -28,9 +28,9 @@ class PlantCard extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: plant.imageUrl != null && plant.imageUrl!.isNotEmpty
+          child: plant.imageUrl.isNotEmpty
               ? Image.network(
-                  plant.imageUrl!,
+                  plant.imageUrl,
                   width: 50,
                   height: 50,
                   fit: BoxFit.cover,

@@ -27,7 +27,7 @@ class HomeScreen extends StatelessWidget {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const add_plant.AddPlantScreen()),
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
               );
             },
           ),
@@ -60,7 +60,9 @@ class HomeScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const add_plant.AddPlantScreen()),
+                      MaterialPageRoute(
+                        builder: (_) => const add_plant.AddPlantScreen(),
+                      ),
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -79,9 +81,9 @@ class HomeScreen extends StatelessWidget {
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('users')
+                  .collection('plants')
                   .doc(userId)
-                  .collection('mesPlantes')
+                  .collection('plants_data')
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -103,11 +105,14 @@ class HomeScreen extends StatelessWidget {
                   itemCount: plantDocs.length,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemBuilder: (context, index) {
-                    final data = plantDocs[index].data() as Map<String, dynamic>;
+                    final data =
+                        plantDocs[index].data() as Map<String, dynamic>;
                     final plant = Plant.fromMap(data, plantDocs[index].id);
 
                     final enriched = plantsData.firstWhere(
-                      (p) => p.name.trim().toLowerCase() == plant.name.trim().toLowerCase(),
+                      (p) =>
+                          p.name.trim().toLowerCase() ==
+                          plant.name.trim().toLowerCase(),
                       orElse: () => PlantData(name: '', details: {}),
                     );
 
@@ -119,7 +124,9 @@ class HomeScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => PlantDetailScreen(
-                              plantData: data,
+                              plant: plant,
+                              plantId: plant.id,
+                              initialImageUrl: plant.imageUrl,
                             ),
                           ),
                         );
