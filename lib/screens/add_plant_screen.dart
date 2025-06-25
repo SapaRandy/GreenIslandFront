@@ -1,3 +1,5 @@
+// FICHIER: add_plant_screen.dart
+
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -24,44 +26,33 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   final _tempController = TextEditingController();
 
   File? _pickedImage;
+  bool _isOutdoor = false;
   bool _isLoading = false;
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImageFromGallery() async {
     final pf = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (pf != null) {
-      final file = File(pf.path);
-      if (!file.existsSync()) {
-        Fluttertoast.showToast(
-          msg: "🪴 ${_nameController.text.trim()} ajoutée avec succès",
-          toastLength: Toast.LENGTH_LONG,
-          gravity: ToastGravity.TOP,
-          backgroundColor: Colors.green.shade700,
-          textColor: Colors.white,
-          fontSize: 16.0,
-        );
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Image non trouvée.")));
+    if (pf == null) return;
 
-        return;
-      }
-      setState(() => _pickedImage = file);
-      await _identifyPlantFromImage(file);
+    final file = File(pf.path);
+    if (!file.existsSync()) {
+      Fluttertoast.showToast(msg: "Image introuvable");
+      return;
     }
+
+    setState(() => _pickedImage = file);
+    await _identifyPlantFromImage(file);
   }
 
   Future<String?> _uploadImageToStorage(File imageFile) async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) return null;
-
-      final fileName =
-          'plants/${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final ref = FirebaseStorage.instance.ref().child(fileName);
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('plants/${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
       await ref.putFile(imageFile);
       return await ref.getDownloadURL();
     } catch (e) {
-      debugPrint('Erreur upload image: $e');
+      debugPrint('Upload failed: $e');
       return null;
     }
   }
@@ -71,52 +62,36 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       final uri = Uri.parse('http://172.30.192.1:8000/plantid/identify/');
       final request = http.MultipartRequest('POST', uri)
         ..files.add(await http.MultipartFile.fromPath('image', image.path));
-
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final name = data['plantName'] as String;
-        _nameController.text = name;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Plante identifiée : $name')));
+        _nameController.text = data['plantName'];
+        Fluttertoast.showToast(msg: 'Plante reconnue : ${data['plantName']}');
       } else {
-        throw Exception('Erreur API ${response.statusCode}');
+        throw Exception('Erreur ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint('Erreur API IA : $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Échec de la reconnaissance de plante")),
-      );
+      Fluttertoast.showToast(msg: 'Erreur IA : $e');
     }
   }
 
   Future<void> _submitPlant() async {
     if (!_formKey.currentState!.validate()) return;
-
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Utilisateur non connecté.")),
-      );
-      return;
-    }
+    if (uid == null) return;
 
     setState(() => _isLoading = true);
+    String? imageUrl;
 
-    String? finalImageUrl;
     if (_pickedImage != null) {
-      final uploadedUrl = await _uploadImageToStorage(_pickedImage!);
-      if (uploadedUrl == null) {
+      imageUrl = await _uploadImageToStorage(_pickedImage!);
+      if (imageUrl == null) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Erreur lors de l'upload de l'image.")),
-        );
+        Fluttertoast.showToast(msg: "Échec de l'upload image.");
         return;
       }
-      finalImageUrl = uploadedUrl;
     }
 
     Position? position;
@@ -128,18 +103,19 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       }
       position = await Geolocator.getCurrentPosition();
     } catch (e) {
-      debugPrint("Erreur géolocalisation : $e");
+      debugPrint("Géoloc désactivée : $e");
     }
 
     try {
       await FirebaseFirestore.instance.collection('plants').add({
         'name': _nameController.text.trim(),
-        'room': _roomController.text.trim(),
+        'dist': _roomController.text.trim(),
         'humidity': _humidityController.text.trim(),
         'temp': _tempController.text.trim(),
-        'imageUrl': finalImageUrl ?? '',
+        'imageUrl': imageUrl ?? '',
         'userId': uid,
         'createdAt': FieldValue.serverTimestamp(),
+        'isOutdoor': _isOutdoor,
         if (position != null) ...{
           'latitude': position.latitude,
           'longitude': position.longitude,
@@ -151,18 +127,80 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         context,
         MaterialPageRoute(builder: (_) => const DashboardScreen()),
       );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Plante ajoutée avec succès !")),
-      );
     } catch (e) {
-      debugPrint('Erreur ajout plante : $e');
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Erreur : ${e.toString()}")));
+      Fluttertoast.showToast(msg: "Erreur sauvegarde : $e");
     } finally {
       setState(() => _isLoading = false);
     }
+  }
+
+  Widget _buildImagePickerSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_pickedImage != null)
+          Stack(
+            children: [
+              Image.file(_pickedImage!, height: 200, fit: BoxFit.cover),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: () => setState(() => _pickedImage = null),
+                  child: const CircleAvatar(
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.close, color: Colors.red),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        const SizedBox(height: 12),
+        ElevatedButton.icon(
+          onPressed: _pickImageFromGallery,
+          icon: const Icon(Icons.camera_alt),
+          label: const Text("Scanner ma plante"),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+        ),
+        const SizedBox(height: 12),
+        const Text("Ou entrez manuellement les informations :",
+            style: TextStyle(fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
+  Widget _buildFormSection() {
+    return Column(
+      children: [
+        CheckboxListTile(
+          title: const Text("La plante est en extérieur"),
+          value: _isOutdoor,
+          onChanged: (v) => setState(() => _isOutdoor = v ?? false),
+        ),
+        TextFormField(
+          controller: _nameController,
+          decoration: const InputDecoration(labelText: 'Nom'),
+          validator: (v) => v!.isEmpty ? "Nom requis" : null,
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _roomController,
+          decoration: const InputDecoration(labelText: 'Niveau d’eau'),
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _humidityController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Humidité (%)'),
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _tempController,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Température (°C)'),
+        ),
+      ],
+    );
   }
 
   @override
@@ -179,79 +217,18 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (_pickedImage != null)
-                Stack(
-                  children: [
-                    Image.file(_pickedImage!, height: 200, fit: BoxFit.cover),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: GestureDetector(
-                        onTap: () => setState(() => _pickedImage = null),
-                        child: const CircleAvatar(
-                          backgroundColor: Colors.white,
-                          child: Icon(Icons.close, color: Colors.red),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: _pickImage,
-                icon: const Icon(Icons.photo_camera),
-                label: const Text("Identifier via photo"),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              ),
-              const Divider(height: 40),
-              const Text(
-                "Infos de la plante",
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nom',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (v) => v!.isEmpty ? "Nom requis" : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _roomController,
-                decoration: const InputDecoration(
-                  labelText: 'Niveau d\'eau',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _humidityController,
-                decoration: const InputDecoration(
-                  labelText: 'Humidité (%)',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _tempController,
-                decoration: const InputDecoration(
-                  labelText: 'Température (°C)',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
+              _buildImagePickerSection(),
+              const Divider(),
+              _buildFormSection(),
               const SizedBox(height: 24),
               _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton.icon(
-                      onPressed: _submitPlant,
                       icon: const Icon(Icons.save),
                       label: const Text("Enregistrer"),
+                      onPressed: _submitPlant,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor: Colors.green.shade700,
                       ),
                     ),
             ],
