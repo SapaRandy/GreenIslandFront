@@ -81,9 +81,9 @@ class HomeScreen extends StatelessWidget {
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('plants')
-                  .doc(userId)
-                  .collection('plants_data')
+                  .collection('plants')         // Racine
+                  .doc(userId)                  // Document correspondant à l’utilisateur
+                  .collection('plants_data')    // Sous-collection contenant ses plantes
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -95,6 +95,7 @@ class HomeScreen extends StatelessWidget {
                 }
 
                 final plantDocs = snapshot.data?.docs ?? [];
+
                 if (plantDocs.isEmpty) {
                   return const Center(
                     child: Text("Aucune plante enregistrée."),
@@ -105,14 +106,12 @@ class HomeScreen extends StatelessWidget {
                   itemCount: plantDocs.length,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemBuilder: (context, index) {
-                    final data =
-                        plantDocs[index].data() as Map<String, dynamic>;
+                    final data = plantDocs[index].data() as Map<String, dynamic>;
                     final plant = Plant.fromMap(data, plantDocs[index].id);
 
+                    // Enrichissement des données via la liste locale `plantsData`
                     final enriched = plantsData.firstWhere(
-                      (p) =>
-                          p.name.trim().toLowerCase() ==
-                          plant.name.trim().toLowerCase(),
+                      (p) => p.name.trim().toLowerCase() == plant.name.trim().toLowerCase(),
                       orElse: () => PlantData(name: '', details: {}),
                     );
 
@@ -137,6 +136,7 @@ class HomeScreen extends StatelessWidget {
               },
             ),
           ),
+
         ],
       ),
     );
