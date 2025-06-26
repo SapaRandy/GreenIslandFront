@@ -110,7 +110,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // ✅ Intégration du widget graphique
+          // ✅ Graphique du nombre de soins
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 12),
             child: PlantCareChart(),
@@ -165,7 +165,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             builder: (_) => PlantDetailScreen(
                               plant: plant,
                               plantId: filteredDocs[index].id,
-                              initialImageUrl: data['imageUrl'] ?? '',
                             ),
                           ),
                         );
