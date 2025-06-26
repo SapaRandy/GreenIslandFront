@@ -122,7 +122,7 @@ class HomeScreen extends StatelessWidget {
                             builder: (_) => PlantDetailScreen(
                               plant: plant,
                               plantId: plant.id,
-                              initialImageUrl: plant.imageUrl,
+                              // initialImageUrl: plant.imageUrl, // Removed because it's not defined
                             ),
                           ),
                         );
