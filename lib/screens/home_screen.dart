@@ -77,13 +77,11 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
 
-          // Liste dynamique des plantes (Firestore)
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('plants')         // Racine
-                  .doc(userId)                  // Document correspondant à l’utilisateur
-                  .collection('plants_data')    // Sous-collection contenant ses plantes
+                  .collection('plants')
+                  .where('userId', isEqualTo: userId) // 🔥 Ajout du filtre utilisateur
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -109,7 +107,6 @@ class HomeScreen extends StatelessWidget {
                     final data = plantDocs[index].data() as Map<String, dynamic>;
                     final plant = Plant.fromMap(data, plantDocs[index].id);
 
-                    // Enrichissement des données via la liste locale `plantsData`
                     final enriched = plantsData.firstWhere(
                       (p) => p.name.trim().toLowerCase() == plant.name.trim().toLowerCase(),
                       orElse: () => PlantData(name: '', details: {}),
@@ -136,6 +133,7 @@ class HomeScreen extends StatelessWidget {
               },
             ),
           ),
+
 
         ],
       ),

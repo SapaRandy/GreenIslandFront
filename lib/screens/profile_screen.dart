@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:smartplant_app/screens/dashboard_screen.dart';
 import 'logout_button.dart';
 import 'devices_screen.dart';
 import 'sensor_screen.dart';
@@ -257,6 +258,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title: const Text("Aide & FAQ"),
                     trailing: const Icon(Icons.arrow_forward_ios),
                     onTap: () {},
+                  ),
+                ),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.help_outline,
+                      color: Color.fromARGB(255, 0, 255, 0),
+                    ),
+                    title: const Text("Dashboard"),
+                    trailing: const Icon(Icons.arrow_forward_ios),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const DashboardScreen(),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(height: 20),

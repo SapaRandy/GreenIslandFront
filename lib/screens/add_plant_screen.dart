@@ -36,9 +36,9 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
   Future<String?> _uploadImageToStorage(File imageFile) async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('plants/${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
+      final ref = FirebaseStorage.instance.ref().child(
+        'plants/${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
       await ref.putFile(imageFile);
       return await ref.getDownloadURL();
     } catch (e) {
@@ -56,7 +56,9 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     try {
       final uri = Uri.parse('http://172.30.192.1:8000/plantid/identify/');
       final request = http.MultipartRequest('POST', uri)
-        ..files.add(await http.MultipartFile.fromPath('image', _pickedImage!.path));
+        ..files.add(
+          await http.MultipartFile.fromPath('image', _pickedImage!.path),
+        );
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
 
@@ -85,37 +87,59 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     setState(() => _isLoading = true);
 
     try {
+      final queryLower = name.trim().toLowerCase();
+
+      // Étape 1 : récupérer toutes les plantes de l’utilisateur
       final allDocs = await FirebaseFirestore.instance
+          .collection('plants')
+          .doc(FirebaseAuth.instance.currentUser!.uid)
           .collection('plants_data')
           .get();
 
-      final queryLower = name.trim().toLowerCase();
+      // Recherche floue locale
+      final matchingDocs = allDocs.docs.where((doc) {
+        final plantName = (doc['name'] ?? '').toString().toLowerCase();
+        return plantName.contains(queryLower);
+      }).toList();
 
-      QueryDocumentSnapshot<Map<String, dynamic>>? match;
+      if (matchingDocs.isEmpty) {
+        Fluttertoast.showToast(msg: "Aucune plante trouvée dans vos données.");
+        setState(() => _foundPlantData = null);
+        return;
+      }
+
+      final plantData = matchingDocs.first
+          .data(); // Tu peux afficher plus tard une liste si tu veux
+
+      // Étape 2 : enrichir depuis 'plants_data' si possible
+      // Étape 2 : enrichir depuis 'plants_data'
+      final enrichSnapshot = await FirebaseFirestore.instance
+          .collection('plants_data')
+          .get();
+
+      QueryDocumentSnapshot<Map<String, dynamic>>? enrichMatch;
       try {
-        match = allDocs.docs.firstWhere(
-          (doc) {
-            final plantName = (doc['name'] ?? '').toString().toLowerCase();
-            return plantName.contains(queryLower);
-          },
+        enrichMatch = enrichSnapshot.docs.firstWhere(
+          (doc) =>
+              (doc['name'] ?? '').toString().toLowerCase().contains(queryLower),
         );
       } catch (e) {
-        match = null;
+        enrichMatch = null;
       }
 
-      if (match != null) {
-        setState(() => _foundPlantData = match!.data());
-      } else {
-        Fluttertoast.showToast(msg: "Plante non trouvée.");
-        setState(() => _foundPlantData = null);
+      if (enrichMatch != null) {
+        final enriched = enrichMatch.data();
+        plantData['details'] = enriched['details'] ?? {};
       }
+
+      setState(() => _foundPlantData = plantData);
     } catch (e) {
-      Fluttertoast.showToast(msg: "Erreur de recherche : $e");
+      Fluttertoast.showToast(msg: "Erreur lors de la recherche : $e");
+      setState(() => _foundPlantData = null);
     } finally {
       setState(() => _isLoading = false);
     }
   }
-
 
   Future<void> _submit() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -135,7 +159,8 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     if (_isOutdoor) {
       try {
         var perm = await Geolocator.checkPermission();
-        if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+        if (perm == LocationPermission.denied ||
+            perm == LocationPermission.deniedForever) {
           perm = await Geolocator.requestPermission();
         }
         position = await Geolocator.getCurrentPosition();
@@ -155,15 +180,18 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         if (position != null) ...{
           'latitude': position.latitude,
           'longitude': position.longitude,
-        }
+        },
       };
 
       await userDoc.update({
-        'mesPlantes': FieldValue.arrayUnion([plantData])
+        'mesPlantes': FieldValue.arrayUnion([plantData]),
       });
 
       if (!mounted) return;
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
     } catch (e) {
       Fluttertoast.showToast(msg: "Erreur Firestore : $e");
     } finally {
@@ -195,10 +223,19 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
                 icon: const Icon(Icons.search),
                 label: const Text("Identifier via IA"),
               ),
+              ElevatedButton.icon(
+                onPressed: _pickedImage == null
+                    ? null
+                    : _triggerPlantIdentification,
+                icon: const Icon(Icons.cancel),
+                label: const Text("Supprimer l'image"),
+              ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(labelText: "Nom de la plante"),
+                decoration: const InputDecoration(
+                  labelText: "Nom de la plante",
+                ),
               ),
               ElevatedButton.icon(
                 onPressed: () => _searchPlantByName(_nameController.text),
@@ -210,13 +247,19 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Informations trouvées :", style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text(
+                      "Informations trouvées :",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                     Text("Nom : ${_foundPlantData!['name'] ?? '-'}"),
                     Text("Détails : ${_foundPlantData!['details'] ?? '-'}"),
                     if (_foundPlantData!['imageUrl'] != null)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Image.network(_foundPlantData!['imageUrl'], height: 120),
+                        child: Image.network(
+                          _foundPlantData!['imageUrl'],
+                          height: 120,
+                        ),
                       ),
                   ],
                 ),

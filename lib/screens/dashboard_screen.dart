@@ -6,11 +6,34 @@ import 'plant_detail_screen.dart';
 import 'add_plant_screen.dart' as add_plant;
 import 'profile_screen.dart';
 import '../models/plant.dart';
-import '../models/plants_data.dart'; // Import des données enrichies
+import '../models/plants_data.dart';
 import '../widgets/plant_card.dart';
+import '../widgets/plant_care_chart.dart'; // ✅ Import du widget graphique
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,47 +58,65 @@ class DashboardScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // Actions rapides
           Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Row(
+            padding: const EdgeInsets.all(12),
+            child: Column(
               children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.water_drop_outlined),
-                    label: const Text("Tout arroser"),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Arrosage en cours...")),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
-                      foregroundColor: Colors.white,
-                    ),
+                TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    hintText: "Rechercher une plante...",
+                    border: OutlineInputBorder(),
                   ),
                 ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const add_plant.AddPlantScreen()),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.brown,
-                    foregroundColor: Colors.white,
-                    shape: const CircleBorder(),
-                    padding: const EdgeInsets.all(12),
-                  ),
-                  child: const Icon(Icons.add),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.water_drop_outlined),
+                        label: const Text("Tout arroser"),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Arrosage en cours...")),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const add_plant.AddPlantScreen()),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.brown,
+                        foregroundColor: Colors.white,
+                        shape: const CircleBorder(),
+                        padding: const EdgeInsets.all(12),
+                      ),
+                      child: const Icon(Icons.add),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
 
-          // Liste dynamique des plantes (Firestore)
+          // ✅ Intégration du widget graphique
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            child: PlantCareChart(),
+          ),
+
+          // 🌿 Liste dynamique des plantes
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -93,18 +134,21 @@ class DashboardScreen extends StatelessWidget {
                 }
 
                 final plantDocs = snapshot.data?.docs ?? [];
-                if (plantDocs.isEmpty) {
-                  return const Center(
-                    child: Text("Aucune plante enregistrée."),
-                  );
+                final filteredDocs = plantDocs.where((doc) {
+                  final name = (doc['name'] ?? '').toString().toLowerCase();
+                  return name.contains(_searchQuery);
+                }).toList();
+
+                if (filteredDocs.isEmpty) {
+                  return const Center(child: Text("Aucune plante trouvée."));
                 }
 
                 return ListView.builder(
-                  itemCount: plantDocs.length,
+                  itemCount: filteredDocs.length,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemBuilder: (context, index) {
-                    final data = plantDocs[index].data() as Map<String, dynamic>;
-                    final plant = Plant.fromMap(data, plantDocs[index].id);
+                    final data = filteredDocs[index].data() as Map<String, dynamic>;
+                    final plant = Plant.fromMap(data, filteredDocs[index].id);
 
                     final enriched = plantsData.firstWhere(
                       (p) => p.name.trim().toLowerCase() == plant.name.trim().toLowerCase(),
@@ -120,7 +164,7 @@ class DashboardScreen extends StatelessWidget {
                           MaterialPageRoute(
                             builder: (_) => PlantDetailScreen(
                               plant: plant,
-                              plantId: plantDocs[index].id,
+                              plantId: filteredDocs[index].id,
                               initialImageUrl: data['imageUrl'] ?? '',
                             ),
                           ),

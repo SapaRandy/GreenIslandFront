@@ -9,11 +9,13 @@ import '../models/plant.dart';
 class PlantDetailScreen extends StatefulWidget {
   final String plantId;
   final String initialImageUrl;
+  final Plant plant;
 
   const PlantDetailScreen({
     super.key,
     required this.plantId,
-    required this.initialImageUrl, required Plant plant,
+    required this.initialImageUrl,
+    required this.plant,
   });
 
   @override
@@ -35,13 +37,14 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
     final List<dynamic> myPlants = userDoc.data()?['mesPlantes'] ?? [];
 
     final found = myPlants.cast<Map<String, dynamic>>().firstWhere(
-      (p) => p['id'] == widget.plantId,
-      orElse: () => {},
-    );
+          (p) => p['id'] == widget.plantId,
+          orElse: () => {},
+        );
 
     if (found.isEmpty) return;
 
@@ -105,29 +108,36 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
             if (_plant!.imageUrl.isNotEmpty)
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(_plant!.imageUrl, height: 200, fit: BoxFit.cover),
+                child: Image.network(
+                  _plant!.imageUrl,
+                  height: 200,
+                  fit: BoxFit.cover,
+                ),
               ),
             const SizedBox(height: 12),
-            Text("💧 Eau : ${_plant!.dist}", style: const TextStyle(fontSize: 16)),
-            Text("🌡️ Température : ${_plant!.temp}°C", style: const TextStyle(fontSize: 16)),
-            Text("💦 Humidité : ${_plant!.humidity}", style: const TextStyle(fontSize: 16)),
+            SensorDataWidget(plantDocId: widget.plantId),
+            const SizedBox(height: 16),
             if (_plant!.latitude != null && _plant!.longitude != null)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 12),
-                  const Text("📍 Localisation", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text("📍 Localisation",
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
                   SizedBox(
                     height: 150,
                     child: GoogleMap(
                       initialCameraPosition: CameraPosition(
-                        target: LatLng(_plant!.latitude!, _plant!.longitude!),
+                        target:
+                            LatLng(_plant!.latitude!, _plant!.longitude!),
                         zoom: 14,
                       ),
                       markers: {
                         Marker(
                           markerId: MarkerId(_plant!.id),
-                          position: LatLng(_plant!.latitude!, _plant!.longitude!),
+                          position:
+                              LatLng(_plant!.latitude!, _plant!.longitude!),
                         )
                       },
                       zoomControlsEnabled: false,
@@ -143,11 +153,13 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               label: const Text("Arroser maintenant"),
             ),
             const SizedBox(height: 24),
-            const Text("🕓 Historique des soins", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text("🕓 Historique des soins",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             ..._careHistory.map((entry) {
               final date = (entry['date'] as Timestamp).toDate();
-              final formatted = DateFormat('dd/MM/yyyy HH:mm').format(date);
+              final formatted =
+                  DateFormat('dd/MM/yyyy HH:mm').format(date);
               return ListTile(
                 leading: const Icon(Icons.local_florist),
                 title: Text(entry['type'] ?? 'Soins'),
@@ -158,6 +170,77 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class SensorDataWidget extends StatelessWidget {
+  final String plantDocId;
+
+  const SensorDataWidget({super.key, required this.plantDocId});
+
+  Stream<Map<String, String>> _sensorStream() async* {
+    while (true) {
+      final tempSnap = await FirebaseFirestore.instance
+          .collection('sensor_temperature')
+          .where('plantId', isEqualTo: 'plants/$plantDocId')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+
+      final humiditySnap = await FirebaseFirestore.instance
+          .collection('sensor_humidity')
+          .where('plantId', isEqualTo: 'plants/$plantDocId')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+
+      final distSnap = await FirebaseFirestore.instance
+          .collection('sensor_distance')
+          .where('plantId', isEqualTo: 'plants/$plantDocId')
+          .orderBy('timestamp', descending: true)
+          .limit(1)
+          .get();
+
+      yield {
+        'Température': tempSnap.docs.isNotEmpty
+            ? tempSnap.docs.first['value'].toString()
+            : 'N/A',
+        'Humidité': humiditySnap.docs.isNotEmpty
+            ? humiditySnap.docs.first['value'].toString()
+            : 'N/A',
+        'Distance': distSnap.docs.isNotEmpty
+            ? distSnap.docs.first['value'].toString()
+            : 'N/A',
+      };
+
+      await Future.delayed(const Duration(seconds: 10));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Map<String, String>>(
+      stream: _sensorStream(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final data = snapshot.data!;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("🔍 Données en temps réel",
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Text("🌡️ Température : ${data['Température']}°C"),
+            Text("💧 Humidité : ${data['Humidité']}%"),
+            Text("📏 Distance : ${data['Distance']} cm"),
+          ],
+        );
+      },
     );
   }
 }
