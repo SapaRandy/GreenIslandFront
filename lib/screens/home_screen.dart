@@ -77,11 +77,12 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
 
+          // Liste des plantes
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('plants')
-                  .where('uid', isEqualTo: userId) // 🔥 Ajout du filtre utilisateur
+                  .where('uid', isEqualTo: userId)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -122,7 +123,6 @@ class HomeScreen extends StatelessWidget {
                             builder: (_) => PlantDetailScreen(
                               plant: plant,
                               plantId: plant.id,
-                              // initialImageUrl: plant.imageUrl, // Removed because it's not defined
                             ),
                           ),
                         );
@@ -133,8 +133,6 @@ class HomeScreen extends StatelessWidget {
               },
             ),
           ),
-
-
         ],
       ),
     );

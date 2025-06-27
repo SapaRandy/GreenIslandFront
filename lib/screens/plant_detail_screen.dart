@@ -37,19 +37,27 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final soinsSnapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('mesPlantes')
-        .doc(widget.plantId)
-        .collection('soins')
-        .orderBy('date', descending: true)
-        .get();
+    try {
+      final soinsSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('plants')
+          .doc(widget.plantId)
+          .collection('soins')
+          .orderBy('date', descending: true)
+          .get();
 
-    setState(() {
-      _careHistory = soinsSnapshot.docs.map((d) => d.data()).toList();
-      _isLoading = false;
-    });
+      setState(() {
+        _careHistory = soinsSnapshot.docs.map((d) => d.data()).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Erreur chargement soins : $e");
+      setState(() {
+        _careHistory = [];
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _deletePlant() async {
@@ -61,7 +69,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
       Fluttertoast.showToast(msg: "Plante supprimée !");
       if (!mounted) return;
-      Navigator.pop(context); // Retour à l’écran précédent
+      Navigator.pop(context);
     } catch (e) {
       Fluttertoast.showToast(msg: "Erreur suppression : $e");
     }
@@ -76,14 +84,14 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
-        .collection('mesPlantes')
+        .collection('plants')
         .doc(widget.plantId)
         .collection('soins')
         .add({'type': 'Arrosage', 'date': now});
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('🌿 Arrosage déclenché')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('🌿 Arrosage déclenché')),
+    );
 
     _loadCareHistory();
   }
@@ -113,12 +121,17 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                 ),
               ),
             const SizedBox(height: 12),
-            SensorDataWidget(plantDocId: widget.plantId),
+
+            // ✅ Données capteurs en live
+            SensorDataWidget(plantId: widget.plantId),
             const SizedBox(height: 16),
+
             Text(
               plant.name,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
+
+            // 🌍 Carte de géolocalisation
             if (plant.latitude != null && plant.longitude != null)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,10 +150,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                       ),
                       children: [
                         TileLayer(
-                          urlTemplate:
-                              "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                          urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
                           subdomains: ['a', 'b', 'c'],
-                          userAgentPackageName: 'com.example.yourapp',
                         ),
                         MarkerLayer(
                           markers: [
@@ -148,10 +159,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                               width: 40.0,
                               height: 40.0,
                               point: LatLng(plant.latitude!, plant.longitude!),
-                              child: const Icon(
-                                Icons.location_pin,
-                                color: Colors.red,
-                              ),
+                              child: const Icon(Icons.location_pin, color: Colors.red),
                             ),
                           ],
                         ),
@@ -167,22 +175,34 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               icon: const Icon(Icons.water_drop),
               label: const Text("Arroser maintenant"),
             ),
+
             const SizedBox(height: 24),
             const Text(
               "🕓 Historique des soins",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
+
             ..._careHistory.map((entry) {
-              final date = (entry['date'] as Timestamp).toDate();
-              final formatted = DateFormat('dd/MM/yyyy HH:mm').format(date);
-              return ListTile(
-                leading: const Icon(Icons.local_florist),
-                title: Text(entry['type'] ?? 'Soins'),
-                subtitle: Text(formatted),
-              );
+              try {
+                final date = (entry['date'] as Timestamp).toDate();
+                final formatted = DateFormat('dd/MM/yyyy HH:mm').format(date);
+                return ListTile(
+                  leading: const Icon(Icons.local_florist),
+                  title: Text(entry['type'] ?? 'Soins'),
+                  subtitle: Text(formatted),
+                );
+              } catch (_) {
+                return const ListTile(
+                  leading: Icon(Icons.error, color: Colors.red),
+                  title: Text("Entrée invalide"),
+                );
+              }
             }),
-            if (_careHistory.isEmpty) const Text("Aucun soin enregistré."),
+
+            if (_careHistory.isEmpty)
+              const Text("Aucun soin enregistré."),
+
             const SizedBox(height: 12),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
@@ -223,22 +243,3 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     );
   }
 }
-
-
-
-
-
-
-// Quand je click sur detailpalntScreen ca s'affiche je vois tous les éléments meme la carte, mais ensuite ca crash et lapp se ferme. J'ai ca dans le terminal apres l'incident:
-// E/AndroidRuntime(12575): java.lang.IllegalStateException: API key not found.  Check that <meta-data android:name="com.google.android.geo.API_KEY" android:value="your API key"/> is in the <application> element of AndroidManifest.xml
-// E/AndroidRuntime(12575):        at com.google.maps.api.android.lib6.common.g.b(:com.google.android.gms.policy_maps_core_dynamite@252130104@252130101025.762146652.762146652:117)
-// E/AndroidRuntime(12575):        at com.google.maps.api.android.lib6.impl.hq.run(:com.google.android.gms.policy_maps_core_dynamite@252130104@252130101025.762146652.762146652:84)
-// E/AndroidRuntime(12575):        at java.util.concurrent.ThreadPoolExecutor.processTask(ThreadPoolExecutor.java:1187)
-// E/AndroidRuntime(12575):        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1152)
-// E/AndroidRuntime(12575):        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:641)
-// E/AndroidRuntime(12575):        at java.lang.Thread.run(Thread.java:784)
-// D/ZrHung.AppEyeUiProbe(12575): stop checker.
-// I/Process (12575): Sending signal. PID: 12575 SIG: 9
-// Lost connection to device.
-
-// Pourtant j'utilise l'app de flutter normalement ???

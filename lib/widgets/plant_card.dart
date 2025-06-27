@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/plant.dart';
 import '../models/plants_data.dart';
 
@@ -16,10 +17,6 @@ class PlantCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final subtitle = enrichedDetails != null && enrichedDetails!.details.isNotEmpty
-        ? '🌱 Origine : ${enrichedDetails!.details['Origine'] ?? 'Inconnue'}'
-        : '💧 Eau : ${plant.dist} - 🌡️ Temp : ${plant.temp}°C';
-
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
       elevation: 3,
@@ -41,10 +38,37 @@ class PlantCard extends StatelessWidget {
           plant.name,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: Text(subtitle),
+
+        subtitle: enrichedDetails != null && enrichedDetails!.details.isNotEmpty
+            ? Text('🌱 Origine : ${enrichedDetails!.details['Origine'] ?? 'Inconnue'}')
+            : StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('mesures')
+                    .where('plantId', isEqualTo: plant.id)
+                    .orderBy('timestamp', descending: true)
+                    .limit(1)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Text("Chargement des mesures...");
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Text("Aucune mesure disponible");
+                  }
+
+                  final data = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+                  final temp = data['temperature']?.toStringAsFixed(1) ?? 'N/A';
+                  final eau = data['niveau_eau']?.toStringAsFixed(1) ?? 'N/A';
+
+                  return Text("💧 Eau : $eau cm - 🌡️ Temp : $temp °C");
+                },
+              ),
+
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: onTap,
       ),
     );
   }
 }
+
