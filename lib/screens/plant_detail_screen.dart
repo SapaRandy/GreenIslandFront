@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../models/plant.dart';
 import '../widgets/sensor_data_widget.dart';
@@ -11,7 +12,11 @@ class PlantDetailScreen extends StatefulWidget {
   final Plant plant;
   final String plantId;
 
-  const PlantDetailScreen({Key? key, required this.plant, required this.plantId}) : super(key: key);
+  const PlantDetailScreen({
+    Key? key,
+    required this.plant,
+    required this.plantId,
+  }) : super(key: key);
 
   @override
   _PlantDetailScreenState createState() => _PlantDetailScreenState();
@@ -58,14 +63,11 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
         .collection('mesPlantes')
         .doc(widget.plantId)
         .collection('soins')
-        .add({
-      'type': 'Arrosage',
-      'date': now,
-    });
+        .add({'type': 'Arrosage', 'date': now});
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('🌿 Arrosage déclenché')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('🌿 Arrosage déclenché')));
 
     _loadCareHistory();
   }
@@ -88,36 +90,57 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
             if (plant.imageUrl.isNotEmpty)
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.network(plant.imageUrl, height: 200, fit: BoxFit.cover),
+                child: Image.network(
+                  plant.imageUrl,
+                  height: 200,
+                  fit: BoxFit.cover,
+                ),
               ),
             const SizedBox(height: 12),
             SensorDataWidget(plantDocId: widget.plantId),
             const SizedBox(height: 16),
+            Text(
+              plant.name,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
             if (plant.latitude != null && plant.longitude != null)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("📍 Localisation", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text(
+                    "📍 Localisation",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   SizedBox(
                     height: 150,
-                    child: GoogleMap(
-                      initialCameraPosition: CameraPosition(
-                        target: LatLng(plant.latitude!, plant.longitude!),
-                        zoom: 14,
+                    child: FlutterMap(
+                      options: MapOptions(
+                        center: LatLng(plant.latitude!, plant.longitude!),
+                        zoom: 14.0,
                       ),
-                      markers: {
-                        Marker(
-                          markerId: MarkerId(plant.id),
-                          position: LatLng(plant.latitude!, plant.longitude!),
-                        )
-                      },
-                      zoomControlsEnabled: false,
-                      liteModeEnabled: true,
+                      children: [
+                        TileLayer(
+                          urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                          subdomains: ['a', 'b', 'c'],
+                          userAgentPackageName: 'com.example.yourapp',
+                        ),
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              width: 40.0,
+                              height: 40.0,
+                              point: LatLng(plant.latitude!, plant.longitude!),
+                              child: const Icon(Icons.location_pin, color: Colors.red),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
+
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _triggerWatering,
@@ -125,7 +148,10 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               label: const Text("Arroser maintenant"),
             ),
             const SizedBox(height: 24),
-            const Text("🕓 Historique des soins", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text(
+              "🕓 Historique des soins",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             ..._careHistory.map((entry) {
               final date = (entry['date'] as Timestamp).toDate();
@@ -144,3 +170,21 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
   }
 }
 
+
+
+
+
+
+// Quand je click sur detailpalntScreen ca s'affiche je vois tous les éléments meme la carte, mais ensuite ca crash et lapp se ferme. J'ai ca dans le terminal apres l'incident:
+// E/AndroidRuntime(12575): java.lang.IllegalStateException: API key not found.  Check that <meta-data android:name="com.google.android.geo.API_KEY" android:value="your API key"/> is in the <application> element of AndroidManifest.xml
+// E/AndroidRuntime(12575):        at com.google.maps.api.android.lib6.common.g.b(:com.google.android.gms.policy_maps_core_dynamite@252130104@252130101025.762146652.762146652:117)
+// E/AndroidRuntime(12575):        at com.google.maps.api.android.lib6.impl.hq.run(:com.google.android.gms.policy_maps_core_dynamite@252130104@252130101025.762146652.762146652:84)
+// E/AndroidRuntime(12575):        at java.util.concurrent.ThreadPoolExecutor.processTask(ThreadPoolExecutor.java:1187)
+// E/AndroidRuntime(12575):        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1152)
+// E/AndroidRuntime(12575):        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:641)
+// E/AndroidRuntime(12575):        at java.lang.Thread.run(Thread.java:784)
+// D/ZrHung.AppEyeUiProbe(12575): stop checker.
+// I/Process (12575): Sending signal. PID: 12575 SIG: 9
+// Lost connection to device.
+
+// Pourtant j'utilise l'app de flutter normalement ???
