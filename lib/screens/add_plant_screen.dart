@@ -52,12 +52,11 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       return;
     }
     setState(() => _isLoading = true);
+
     try {
       final uri = Uri.parse('https://greenislandback.onrender.com/plantid/identify/');
       final request = http.MultipartRequest('POST', uri)
-        ..files.add(
-          await http.MultipartFile.fromPath('image', _pickedImage!.path),
-        );
+        ..files.add(await http.MultipartFile.fromPath('image', _pickedImage!.path));
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
 
@@ -66,8 +65,26 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         final name = data['plant_name'];
         if (name != null) {
           _nameController.text = name;
+
+          // Récupération des détails via l'API infos/
+          final encodedName = Uri.encodeComponent(name.toLowerCase());
+          final infoUri = Uri.parse('https://greenislandback.onrender.com/plantid/infos/?name=$encodedName');
+          final infoResponse = await http.get(infoUri);
+
+          Map<String, dynamic> details = {};
+          if (infoResponse.statusCode == 200) {
+            final infoData = jsonDecode(infoResponse.body);
+            details = infoData['details'] ?? {};
+          }
+
+          setState(() {
+            _foundPlantData = {
+              'name': name,
+              'details': details,
+            };
+          });
+
           Fluttertoast.showToast(msg: "Plante reconnue : $name");
-          await _searchPlantByName(name);
         } else {
           Fluttertoast.showToast(msg: "Plante non reconnue");
         }
@@ -88,7 +105,6 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     try {
       final queryLower = name.trim().toLowerCase();
 
-      // Étape unique : chercher dans la base globale 'plants_data'
       final snapshot = await FirebaseFirestore.instance
           .collection('plants_data')
           .where('name', isEqualTo: queryLower)
@@ -118,7 +134,6 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     }
   }
 
-
   Future<void> _submit() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null || _foundPlantData == null) {
@@ -128,6 +143,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
 
     setState(() => _isLoading = true);
     String? imageUrl;
+
     if (_pickedImage != null) {
       imageUrl = await _uploadImageToStorage(_pickedImage!);
       if (imageUrl == null) {
@@ -164,15 +180,12 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         },
       };
 
-      // Ajout à la collection centrale "plants"
+      // Sauvegarde dans la collection centrale "plants"
       await FirebaseFirestore.instance.collection('plants').add(plantData);
 
-      if (!mounted) return;
-      Fluttertoast.showToast(msg: "Plante enregistrée avec succès !");
-      // Enregistrer ou mettre à jour dans plants_data
-      if (_nameController.text.trim().isNotEmpty) {
-        final plantNameLower = _nameController.text.trim().toLowerCase();
-
+      // Enregistrement ou mise à jour dans plants_data
+      final plantNameLower = _nameController.text.trim().toLowerCase();
+      if (plantNameLower.isNotEmpty) {
         final query = await FirebaseFirestore.instance
             .collection('plants_data')
             .where('name', isEqualTo: plantNameLower)
@@ -182,19 +195,19 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         final details = _foundPlantData!['details'] ?? {};
 
         if (query.docs.isEmpty) {
-          // Ajouter une nouvelle entrée si elle n'existe pas
           await FirebaseFirestore.instance.collection('plants_data').add({
             'name': plantNameLower,
             'details': details,
           });
         } else {
-          // Fusionner les détails existants si besoin
           await query.docs.first.reference.set({
             'details': details,
           }, SetOptions(merge: true));
         }
       }
 
+      if (!mounted) return;
+      Fluttertoast.showToast(msg: "Plante enregistrée avec succès !");
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
