@@ -9,8 +9,7 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
-// Variable globale pour l'état de l'arrosage automatique
-bool autoWateringEnabled = false; // au-dessus du build()
+bool autoWateringEnabled = false;
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -25,7 +24,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _photoUrlController = TextEditingController();
 
   @override
   void initState() {
@@ -46,35 +44,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
         .child('profile_pictures')
         .child('${user.uid}.jpg');
 
-    await ref.putFile(File(file.path));
-    final imageUrl = await ref.getDownloadURL();
+    try {
+      await ref.putFile(File(file.path));
+      final imageUrl = await ref.getDownloadURL();
 
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-      'photoUrl': imageUrl,
-    });
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+        'photoUrl': imageUrl,
+      });
 
-    await _loadUserData(); // recharge les données
+      setState(() {
+        userData?['photoUrl'] = '$imageUrl?ts=${DateTime.now().millisecondsSinceEpoch}';
+      });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Photo de profil mise à jour.")),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Photo de profil mise à jour.")),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur lors de l'upload : $e")),
+      );
+    }
   }
 
   Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
+    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     final data = doc.data();
 
     if (data != null) {
       setState(() {
         userData = data;
         _nameController.text = data['fullName'] ?? '';
-        // _photoUrlController.text = data['photoUrl'] ?? '';
         isLoading = false;
       });
     }
@@ -86,12 +88,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
       'fullName': _nameController.text.trim(),
-      'photoUrl': _photoUrlController.text.trim(),
     });
 
     setState(() {
       userData!['fullName'] = _nameController.text.trim();
-      userData!['photoUrl'] = _photoUrlController.text.trim();
     });
 
     Navigator.of(context).pop();
@@ -107,23 +107,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Modifier le profil'),
         content: Form(
           key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(labelText: 'Nom complet'),
-                validator: (value) => value == null || value.isEmpty
-                    ? 'Veuillez saisir un nom'
-                    : null,
-              ),
-              TextFormField(
-                controller: _photoUrlController,
-                decoration: const InputDecoration(
-                  labelText: 'URL photo de profil',
-                ),
-              ),
-            ],
+          child: TextFormField(
+            controller: _nameController,
+            decoration: const InputDecoration(labelText: 'Nom complet'),
+            validator: (value) =>
+                value == null || value.isEmpty ? 'Veuillez saisir un nom' : null,
           ),
         ),
         actions: [
@@ -146,8 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final avatarUrl =
-        userData?['photoUrl'] ?? 'https://i.pravatar.cc/150?img=47';
+    final avatarUrl = userData?['photoUrl'] ?? 'https://i.pravatar.cc/150?img=47';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F2),
@@ -172,18 +159,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: _pickAndUploadImage,
                   child: CircleAvatar(
                     radius: 50,
-                    backgroundImage: NetworkImage('$avatarUrl?${DateTime.now().millisecondsSinceEpoch}'),
+                    backgroundImage: NetworkImage(avatarUrl),
                     child: Align(
                       alignment: Alignment.bottomRight,
                       child: CircleAvatar(
                         backgroundColor: Colors.white,
                         radius: 15,
-                        child: Icon(Icons.edit, size: 16, color: Colors.black),
+                        child: const Icon(Icons.edit, size: 16, color: Colors.black),
                       ),
                     ),
                   ),
                 ),
-
                 const SizedBox(height: 16),
                 Center(
                   child: Text(
@@ -201,8 +187,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const Divider(height: 40),
-
-                // ✅ Nouvelle carte : Appareils connectés
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.devices, color: Colors.teal),
@@ -211,28 +195,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => const DevicesScreen(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const DevicesScreen()),
                       );
                     },
                   ),
                 ),
-
                 Card(
                   child: ListTile(
-                    leading: const Icon(
-                      Icons.notifications_active,
-                      color: Colors.green,
-                    ),
+                    leading: const Icon(Icons.notifications_active, color: Colors.green),
                     title: const Text("Notifications"),
                     trailing: const Icon(Icons.arrow_forward_ios),
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => const SensorsScreen(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const SensorsScreen()),
                       );
                     },
                   ),
@@ -251,10 +227,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 Card(
                   child: ListTile(
-                    leading: const Icon(
-                      Icons.help_outline,
-                      color: Colors.orange,
-                    ),
+                    leading: const Icon(Icons.help_outline, color: Colors.orange),
                     title: const Text("Aide & FAQ"),
                     trailing: const Icon(Icons.arrow_forward_ios),
                     onTap: () {},
@@ -262,18 +235,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 Card(
                   child: ListTile(
-                    leading: const Icon(
-                      Icons.help_outline,
-                      color: Color.fromARGB(255, 0, 255, 0),
-                    ),
+                    leading: const Icon(Icons.dashboard, color: Colors.green),
                     title: const Text("Dashboard"),
                     trailing: const Icon(Icons.arrow_forward_ios),
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => const DashboardScreen(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const DashboardScreen()),
                       );
                     },
                   ),
