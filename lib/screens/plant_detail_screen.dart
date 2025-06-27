@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 import '../models/plant.dart';
 import '../widgets/sensor_data_widget.dart';
@@ -49,6 +50,21 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       _careHistory = soinsSnapshot.docs.map((d) => d.data()).toList();
       _isLoading = false;
     });
+  }
+
+  Future<void> _deletePlant() async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('plants')
+          .doc(widget.plantId)
+          .delete();
+
+      Fluttertoast.showToast(msg: "Plante supprimée !");
+      if (!mounted) return;
+      Navigator.pop(context); // Retour à l’écran précédent
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Erreur suppression : $e");
+    }
   }
 
   Future<void> _triggerWatering() async {
@@ -121,7 +137,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                       ),
                       children: [
                         TileLayer(
-                          urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                          urlTemplate:
+                              "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
                           subdomains: ['a', 'b', 'c'],
                           userAgentPackageName: 'com.example.yourapp',
                         ),
@@ -131,7 +148,10 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                               width: 40.0,
                               height: 40.0,
                               point: LatLng(plant.latitude!, plant.longitude!),
-                              child: const Icon(Icons.location_pin, color: Colors.red),
+                              child: const Icon(
+                                Icons.location_pin,
+                                color: Colors.red,
+                              ),
                             ),
                           ],
                         ),
@@ -163,6 +183,40 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               );
             }),
             if (_careHistory.isEmpty) const Text("Aucun soin enregistré."),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text("Confirmation"),
+                    content: const Text("Supprimer cette plante ?"),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text("Annuler"),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _deletePlant();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        child: const Text("Supprimer"),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              icon: const Icon(Icons.delete),
+              label: const Text("Supprimer la plante"),
+            ),
           ],
         ),
       ),

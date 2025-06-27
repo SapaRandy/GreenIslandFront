@@ -66,7 +66,7 @@ class HomeScreen extends StatelessWidget {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.brown,
+                    backgroundColor: const Color.fromARGB(255, 59, 129, 49),
                     foregroundColor: Colors.white,
                     shape: const CircleBorder(),
                     padding: const EdgeInsets.all(12),
@@ -81,7 +81,7 @@ class HomeScreen extends StatelessWidget {
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('plants')
-                  .where('userId', isEqualTo: userId) // 🔥 Ajout du filtre utilisateur
+                  .where('uid', isEqualTo: userId) // 🔥 Ajout du filtre utilisateur
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
