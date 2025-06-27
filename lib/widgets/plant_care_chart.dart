@@ -11,6 +11,7 @@ class PlantCareChart extends StatefulWidget {
 }
 
 class _PlantCareChartState extends State<PlantCareChart> {
+  final userId = FirebaseAuth.instance.currentUser?.uid;
   Map<String, int> _careCounts = {};
   bool _isLoading = true;
 
@@ -26,7 +27,7 @@ class _PlantCareChartState extends State<PlantCareChart> {
 
     final querySnapshot = await FirebaseFirestore.instance
         .collection('plants')
-        .where('userId', isEqualTo: uid)
+        .where('uid', isEqualTo: userId)
         .get();
 
     Map<String, int> counts = {};
