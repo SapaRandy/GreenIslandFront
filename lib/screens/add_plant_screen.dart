@@ -53,7 +53,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     }
     setState(() => _isLoading = true);
     try {
-      final uri = Uri.parse('http://greenislandback.onrender.com/plantid/identify/');
+      final uri = Uri.parse('https://greenislandback.onrender.com/plantid/identify/');
       final request = http.MultipartRequest('POST', uri)
         ..files.add(
           await http.MultipartFile.fromPath('image', _pickedImage!.path),
