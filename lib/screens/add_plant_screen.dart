@@ -20,37 +20,14 @@ class AddPlantScreen extends StatefulWidget {
 class _AddPlantScreenState extends State<AddPlantScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  bool _isOutdoor = false;
-  File? _pickedImage;
-  bool _isLoading = false;
-  Map<String, dynamic>? _foundPlantData;
+bool _isOutdoor = false;
+File? _pickedImage;
+bool _isLoading = false;
+Map<String, dynamic>? _foundPlantData;
 
-  String? _selectedDeviceId;
-  List<Map<String, dynamic>> _availableDevices = [];
+Map<String, dynamic> details = {};
 
-  @override
-  void initState() {
-    super.initState();
-    _loadAvailableDevices();
-  }
 
-  Future<void> _loadAvailableDevices() async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('devices')
-        .where('status', isEqualTo: 'free')
-        .get();
-
-    setState(() {
-      _availableDevices = snapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
-          'id': doc.id,
-          'name': data['name'] ?? 'Sans nom',
-          'location': data['location'] ?? '',
-        };
-      }).toList();
-    });
-  }
 
   Future<void> _pickImage() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
@@ -93,8 +70,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         if (name != null) {
           _nameController.text = name;
 
-          final encodedName = Uri.encodeComponent(name.toLowerCase());
-          final infoUri = Uri.parse('https://greenislandback.onrender.com/plantid/infos/?name=$encodedName');
+          final infoUri = Uri.parse('https://greenislandback.onrender.com/plantid/infos/?name=$name');
           final infoResponse = await http.get(infoUri);
 
           Map<String, dynamic> details = {};
@@ -131,27 +107,24 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     try {
       final queryLower = name.trim().toLowerCase();
 
-      final snapshot = await FirebaseFirestore.instance
-          .collection('plants_data')
-          .where('name', isEqualTo: queryLower)
-          .limit(1)
-          .get();
+      final infoUri = Uri.parse('https://greenislandback.onrender.com/plantid/infos/?name=$queryLower');
+      final infoResponse = await http.get(infoUri);
 
-      if (snapshot.docs.isEmpty) {
+      if (infoResponse.statusCode != 200) {
         Fluttertoast.showToast(msg: "Plante non trouvée dans la base.");
         setState(() => _foundPlantData = null);
         return;
       }
 
-      final doc = snapshot.docs.first;
-      final data = doc.data();
+      final infoData = jsonDecode(infoResponse.body);
+      final details = infoData['details'] ?? {};
 
       setState(() => _foundPlantData = {
-        'name': data['name'] ?? queryLower,
-        'details': data['details'] ?? {},
+        'name': queryLower,
+        'details': details,
       });
 
-      Fluttertoast.showToast(msg: "Plante trouvée : ${data['name']}");
+      Fluttertoast.showToast(msg: "Plante trouvée : $queryLower");
     } catch (e) {
       Fluttertoast.showToast(msg: "Erreur lors de la recherche : $e");
       setState(() => _foundPlantData = null);
@@ -204,17 +177,9 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
           'latitude': position.latitude,
           'longitude': position.longitude,
         },
-        if (_selectedDeviceId != null) 'deviceId': _selectedDeviceId,
       };
 
       await FirebaseFirestore.instance.collection('plants').add(plantData);
-
-      if (_selectedDeviceId != null) {
-        await FirebaseFirestore.instance
-            .collection('devices')
-            .doc(_selectedDeviceId)
-            .update({'status': 'in_use'});
-      }
 
       final plantNameLower = _nameController.text.trim().toLowerCase();
       if (plantNameLower.isNotEmpty) {
@@ -320,30 +285,6 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
                 value: _isOutdoor,
                 onChanged: (v) => setState(() => _isOutdoor = v ?? false),
               ),
-              const SizedBox(height: 12),
-              if (_availableDevices.isNotEmpty)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("Associer un appareil :"),
-                    DropdownButtonFormField<String>(
-                      value: _selectedDeviceId,
-                      items: _availableDevices.map((device) {
-                        return DropdownMenuItem<String>(
-                          value: device['id'],
-                          child: Text("${device['name']} (${device['location']})"),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() => _selectedDeviceId = value);
-                      },
-                      decoration: const InputDecoration(
-                        labelText: 'Sélectionner un appareil',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ),
               const SizedBox(height: 20),
               _isLoading
                   ? const Center(child: CircularProgressIndicator())

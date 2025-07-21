@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:smartplant_app/screens/dashboard_screen.dart';
 import 'logout_button.dart';
 import 'devices_screen.dart';
-import 'sensor_screen.dart';
 import 'settings_screen.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -197,19 +196,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const DevicesScreen()),
-                      );
-                    },
-                  ),
-                ),
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.notifications_active, color: Colors.green),
-                    title: const Text("Notifications"),
-                    trailing: const Icon(Icons.arrow_forward_ios),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const SensorsScreen()),
                       );
                     },
                   ),

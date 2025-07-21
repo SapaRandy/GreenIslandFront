@@ -7,6 +7,7 @@ import 'add_plant_screen.dart' as add_plant;
 import 'profile_screen.dart';
 import '../models/plant.dart';
 import '../models/plants_data.dart'; // Import des données enrichies
+import '../models/plants_data.dart' show PlantData;
 import '../widgets/plant_card.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -108,28 +109,41 @@ class HomeScreen extends StatelessWidget {
                     final data = plantDocs[index].data() as Map<String, dynamic>;
                     final plant = Plant.fromMap(data, plantDocs[index].id);
 
-                    final enriched = plantsData.firstWhere(
-                      (p) => p.name.trim().toLowerCase() == plant.name.trim().toLowerCase(),
-                      orElse: () => PlantData(name: '', details: {}),
-                    );
+                    return FutureBuilder<DocumentSnapshot>(
+                      future: FirebaseFirestore.instance
+                          .collection('plant_data')
+                          .doc(plant.name.toLowerCase().trim()) // nom = clé
+                          .get(),
+                      builder: (context, snapshot) {
+                        PlantData? enriched;
 
-                    return PlantCard(
-                      plant: plant,
-                      enrichedDetails: enriched,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PlantDetailScreen(
-                              plant: plant,
-                              plantId: plant.id,
-                            ),
-                          ),
+                        if (snapshot.connectionState == ConnectionState.done &&
+                            snapshot.hasData &&
+                            snapshot.data!.exists) {
+                          final docData = snapshot.data!.data() as Map<String, dynamic>;
+                          enriched = PlantData.fromJson(docData);
+                        }
+
+                        return PlantCard(
+                          plant: plant,
+                          enrichedDetails: enriched,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PlantDetailScreen(
+                                  plant: plant,
+                                  plantId: plant.id,
+                                ),
+                              ),
+                            );
+                          },
                         );
                       },
                     );
                   },
                 );
+
               },
             ),
           ),

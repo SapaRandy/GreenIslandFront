@@ -39,36 +39,41 @@ class PlantCard extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
 
+        // 🧠 Subtitle dynamique
         subtitle: enrichedDetails != null && enrichedDetails!.details.isNotEmpty
             ? Text('🌱 Origine : ${enrichedDetails!.details['Origine'] ?? 'Inconnue'}')
-            : StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('mesures')
-                    .where('plantId', isEqualTo: plant.id)
-                    .orderBy('timestamp', descending: true)
-                    .limit(1)
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Text("Chargement des mesures...");
-                  }
+            : (plant.deviceId != null && plant.deviceId!.isNotEmpty
+                ? StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('mesures')
+                        .where('plantId', isEqualTo: plant.id)
+                        .orderBy('timestamp', descending: true)
+                        .limit(1)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Text("Chargement des mesures...");
+                      }
 
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return const Text("Aucune mesure disponible");
-                  }
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return const Text("Aucune mesure disponible");
+                      }
 
-                  final data = snapshot.data!.docs.first.data() as Map<String, dynamic>;
-                  final temp = data['temperature']?.toStringAsFixed(1) ?? 'N/A';
-                  final eau = data['niveau_eau']?.toStringAsFixed(1) ?? 'N/A';
+                      final data = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+                      final temp = (data['temperature'] is num)
+                          ? (data['temperature'] as num).toStringAsFixed(1)
+                          : 'N/A';
+                      final eau = (data['niveau_eau'] is num)
+                          ? (data['niveau_eau'] as num).toStringAsFixed(1)
+                          : 'N/A';
 
-                  return Text("💧 Eau : $eau cm - 🌡️ Temp : $temp °C");
-                },
-              ),
-
+                      return Text("💧 Eau : $eau cm - 🌡️ Temp : $temp °C");
+                    },
+                  )
+                : const Text("🔌 Aucun capteur associé")),
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: onTap,
       ),
     );
   }
 }
-

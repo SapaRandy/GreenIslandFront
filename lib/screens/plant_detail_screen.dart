@@ -26,7 +26,6 @@ class PlantDetailScreen extends StatefulWidget {
 }
 
 class _PlantDetailScreenState extends State<PlantDetailScreen> {
-  bool _isLoading = false;
 
 
   // ⬇️ AJOUT

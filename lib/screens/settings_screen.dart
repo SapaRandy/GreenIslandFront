@@ -66,7 +66,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           final docs = snapshot.data?.docs ?? [];
 
-          if (docs.isEmpty) return const Center(child: Text("Aucun capteur connecté"));
+          if (docs.isEmpty) return const Center(child: Text("Aucun device connecté"));
 
           return ListView.builder(
             itemCount: docs.length,

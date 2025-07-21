@@ -8,6 +8,7 @@ import '../models/plants_data.dart';
 import '../widgets/plant_card.dart';
 
 
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -89,34 +90,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 }
 
                 return ListView.builder(
-                  itemCount: filteredDocs.length,
+                  itemCount: plantDocs.length,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemBuilder: (context, index) {
-                    final data = filteredDocs[index].data() as Map<String, dynamic>;
-                    final plant = Plant.fromMap(data, filteredDocs[index].id);
+                    final data = plantDocs[index].data() as Map<String, dynamic>;
+                    final plant = Plant.fromMap(data, plantDocs[index].id);
 
-                    final enriched = plantsData.firstWhere(
-                      (p) => p.name.trim().toLowerCase() == plant.name.trim().toLowerCase(),
-                      orElse: () => PlantData(name: '', details: {}),
-                    );
+                    return FutureBuilder<DocumentSnapshot>(
+                      future: FirebaseFirestore.instance
+                          .collection('plant_data')
+                          .doc(plant.name.toLowerCase().trim()) // nom = clé
+                          .get(),
+                      builder: (context, snapshot) {
+                        PlantData? enriched;
 
-                    return PlantCard(
-                      plant: plant,
-                      enrichedDetails: enriched,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PlantDetailScreen(
-                              plant: plant,
-                              plantId: filteredDocs[index].id,
-                            ),
-                          ),
+                        if (snapshot.connectionState == ConnectionState.done &&
+                            snapshot.hasData &&
+                            snapshot.data!.exists) {
+                          final docData = snapshot.data!.data() as Map<String, dynamic>;
+                          enriched = PlantData.fromJson(docData);
+                        }
+
+                        return PlantCard(
+                          plant: plant,
+                          enrichedDetails: enriched,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PlantDetailScreen(
+                                  plant: plant,
+                                  plantId: plant.id,
+                                ),
+                              ),
+                            );
+                          },
                         );
                       },
                     );
                   },
                 );
+
               },
             ),
           ),
