@@ -77,10 +77,17 @@ class _DevicesScreenState extends State<DevicesScreen> {
       );
 
       if (response.statusCode == 200) {
+
+        await FirebaseFirestore.instance.collection('devices').doc(deviceId).update({
+          'status': 'active',
+          'userId': user.uid, // utile pour la permission
+        });
+
         setState(() {
           connectedDeviceId = deviceId;
           availableDevices.removeWhere((d) => d['id'] == deviceId);
         });
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Appareil connecté avec succès')),
         );
