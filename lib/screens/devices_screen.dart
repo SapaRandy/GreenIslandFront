@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -30,6 +32,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
           .get();
 
       final devices = querySnapshot.docs.map((doc) {
+        // ignore: avoid_print
+        print("Chargement des devices...");
         final data = doc.data();
         return {
           'id': doc.id,
@@ -38,6 +42,10 @@ class _DevicesScreenState extends State<DevicesScreen> {
           'ip': data['IP'] ?? '',
         };
       }).toList();
+      print("Nombre de résultats : ${querySnapshot.docs.length}");
+      for (var doc in querySnapshot.docs) {
+        print("Device trouvé : ${doc.id} -> ${doc.data()}");
+      }
 
       setState(() {
         availableDevices = devices;
@@ -50,6 +58,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Erreur : $e')));
     }
+    
   }
 
   Future<void> _connectToDevice(String deviceId) async {
