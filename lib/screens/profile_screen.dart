@@ -68,19 +68,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadUserData() async {
     final user = FirebaseAuth.instance.currentUser;
+    print("UID courant : ${user?.uid}");
     if (user == null) return;
 
-    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-    final data = doc.data();
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 
-    if (data != null) {
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        setState(() {
+          userData = data;
+          _nameController.text = data['fullName'] ?? '';
+          isLoading = false;
+        });
+      } else {
+        // Document inexistant → afficher un message ou en créer un
+        setState(() {
+          isLoading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Aucune donnée de profil trouvée.")),
+        );
+      }
+    } catch (e) {
       setState(() {
-        userData = data;
-        _nameController.text = data['fullName'] ?? '';
         isLoading = false;
       });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur de chargement du profil : $e")),
+      );
     }
   }
+
 
   Future<void> _updateUserProfile() async {
     final user = FirebaseAuth.instance.currentUser;
