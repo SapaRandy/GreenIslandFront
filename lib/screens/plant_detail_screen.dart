@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -12,11 +11,14 @@ import '../widgets/sensor_data_widget.dart';
 class PlantDetailScreen extends StatefulWidget {
   final Plant plant;
   final String plantId;
+  final String deviceId;
+
 
   const PlantDetailScreen({
     Key? key,
     required this.plant,
     required this.plantId,
+    this.deviceId = '',
   }) : super(key: key);
 
   @override
@@ -24,85 +26,98 @@ class PlantDetailScreen extends StatefulWidget {
 }
 
 class _PlantDetailScreenState extends State<PlantDetailScreen> {
-  List<Map<String, dynamic>> _careHistory = [];
-  bool _isLoading = true;
+  bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadCareHistory();
-  }
 
-  Future<void> _loadCareHistory() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+  // ⬇️ AJOUT
+  Future<void> _showDeviceSelector() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
 
-    try {
-      final soinsSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('plants')
-          .doc(widget.plantId)
-          .collection('soins')
-          .orderBy('date', descending: true)
-          .get();
+    final snapshot = await FirebaseFirestore.instance
+        .collection('devices')
+        .where('userId', isEqualTo: userId)
+        .where('status', isEqualTo: 'active')
+        .get();
 
-      setState(() {
-        _careHistory = soinsSnapshot.docs.map((d) => d.data()).toList();
-        _isLoading = false;
-      });
-    } catch (e) {
-      Fluttertoast.showToast(msg: "Erreur chargement soins : $e");
-      setState(() {
-        _careHistory = [];
-        _isLoading = false;
-      });
+    final devices = snapshot.docs;
+
+    if (devices.isEmpty) {
+      Fluttertoast.showToast(msg: "Aucun device disponible.");
+      return;
     }
-  }
 
-  Future<void> _deletePlant() async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('plants')
-          .doc(widget.plantId)
-          .delete();
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => ListView.builder(
+        itemCount: devices.length,
+        itemBuilder: (context, index) {
+          final data = devices[index].data();
+          final id = devices[index].id;
+          return ListTile(
+            leading: const Icon(Icons.sensors),
+            title: Text(data['name'] ?? 'Device'),
+            subtitle: Text("📍 ${data['location'] ?? ''}"),
+            onTap: () async {
+              Navigator.pop(context);
+              await FirebaseFirestore.instance
+                  .collection('plants')
+                  .doc(widget.plantId)
+                  .update({'deviceId': id}); // ou 'deviceId' si renommé
 
-      Fluttertoast.showToast(msg: "Plante supprimée !");
-      if (!mounted) return;
-      Navigator.pop(context);
-    } catch (e) {
-      Fluttertoast.showToast(msg: "Erreur suppression : $e");
-    }
+              Fluttertoast.showToast(msg: "Device associé !");
+              setState(() {});
+            },
+          );
+        },
+      ),
+    );
   }
+  // ⬆️ FIN AJOUT
 
   Future<void> _triggerWatering() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final now = DateTime.now();
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('plants')
+          .doc(widget.plantId)
+          .update({'auto': true});
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('plants')
-        .doc(widget.plantId)
-        .collection('soins')
-        .add({'type': 'Arrosage', 'date': now});
+      Fluttertoast.showToast(msg: "🌿 Arrosage automatique activé !");
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Erreur : $e");
+    }
+  }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('🌿 Arrosage déclenché')),
-    );
+  Future<void> _deletePlant() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
 
-    _loadCareHistory();
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('plants')
+          .doc(widget.plantId)
+          .delete();
+
+      Fluttertoast.showToast(msg: "Plante supprimée !");
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Erreur suppression : $e");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final plant = widget.plant;
-
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
 
     return Scaffold(
       appBar: AppBar(title: Text(plant.name)),
@@ -122,7 +137,6 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               ),
             const SizedBox(height: 12),
 
-            // ✅ Données capteurs en live
             SensorDataWidget(plantId: widget.plantId),
             const SizedBox(height: 16),
 
@@ -131,7 +145,6 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
 
-            // 🌍 Carte de géolocalisation
             if (plant.latitude != null && plant.longitude != null)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,41 +182,22 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                 ],
               ),
 
+            if ((plant.deviceId ?? '').isEmpty || plant.deviceId == 'none')
+            ElevatedButton.icon(
+              onPressed: _showDeviceSelector,
+              icon: const Icon(Icons.sensors),
+              label: const Text("Associer un capteur"),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+            ),
+
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _triggerWatering,
               icon: const Icon(Icons.water_drop),
-              label: const Text("Arroser maintenant"),
+              label: const Text("Activer l’arrosage automatique"),
             ),
 
             const SizedBox(height: 24),
-            const Text(
-              "🕓 Historique des soins",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-
-            ..._careHistory.map((entry) {
-              try {
-                final date = (entry['date'] as Timestamp).toDate();
-                final formatted = DateFormat('dd/MM/yyyy HH:mm').format(date);
-                return ListTile(
-                  leading: const Icon(Icons.local_florist),
-                  title: Text(entry['type'] ?? 'Soins'),
-                  subtitle: Text(formatted),
-                );
-              } catch (_) {
-                return const ListTile(
-                  leading: Icon(Icons.error, color: Colors.red),
-                  title: Text("Entrée invalide"),
-                );
-              }
-            }),
-
-            if (_careHistory.isEmpty)
-              const Text("Aucun soin enregistré."),
-
-            const SizedBox(height: 12),
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,

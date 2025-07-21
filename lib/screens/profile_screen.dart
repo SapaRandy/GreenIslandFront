@@ -5,6 +5,7 @@ import 'package:smartplant_app/screens/dashboard_screen.dart';
 import 'logout_button.dart';
 import 'devices_screen.dart';
 import 'sensor_screen.dart';
+import 'settings_screen.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -225,6 +226,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     secondary: const Icon(Icons.water_drop, color: Colors.blue),
                   ),
                 ),
+
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.settings, color: Color.fromARGB(255, 222, 8, 8)),
+                    title: const Text("Liste device"),
+                    trailing: const Icon(Icons.arrow_forward_ios),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                      );
+                    },
+                  ),
+                ),
+
                 Card(
                   child: ListTile(
                     leading: const Icon(Icons.help_outline, color: Colors.orange),

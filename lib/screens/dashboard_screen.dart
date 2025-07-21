@@ -6,7 +6,7 @@ import 'plant_detail_screen.dart';
 import '../models/plant.dart';
 import '../models/plants_data.dart';
 import '../widgets/plant_card.dart';
-import '../widgets/plant_care_chart.dart';
+
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -60,7 +60,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // ✅ Graphique des soins
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 12),
-            child: PlantCareChart(),
           ),
 
           // 🌿 Liste dynamique des plantes
