@@ -66,9 +66,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(userId)
                   .collection('plants')
+                  .where('uid', isEqualTo: userId)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
