@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 import '../models/plant.dart';
 import '../widgets/sensor_data_widget.dart';
@@ -13,8 +15,7 @@ class PlantDetailScreen extends StatefulWidget {
   final String plantId;
   final String deviceId;
 
-
-  const PlantDetailScreen({
+  PlantDetailScreen({
     Key? key,
     required this.plant,
     required this.plantId,
@@ -26,26 +27,41 @@ class PlantDetailScreen extends StatefulWidget {
 }
 
 class _PlantDetailScreenState extends State<PlantDetailScreen> {
-
+  String? resolvedAddress;
 
   // ⬇️ AJOUT
   Future<void> _showDeviceSelector() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) return;
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection('devices')
-        .where('userId', isEqualTo: userId)
-        .where('status', isEqualTo: 'active')
-        .get();
+    final url = Uri.parse(
+      "https://greenislandback.onrender.com/plantid/deviceslist",
+    );
+    List<dynamic> devices = [];
 
-    final devices = snapshot.docs;
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"userId": userId}),
+      );
 
-    if (devices.isEmpty) {
-      Fluttertoast.showToast(msg: "Aucun device disponible.");
+      if (response.statusCode == 200) {
+        devices = jsonDecode(response.body);
+        if (devices.isEmpty) {
+          Fluttertoast.showToast(msg: "Aucun device disponible.");
+          return;
+        }
+      } else {
+        Fluttertoast.showToast(msg: "Erreur backend : ${response.body}");
+        return;
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Erreur connexion : $e");
       return;
     }
 
+    // ✅ Affichage des devices dans le modal
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -54,20 +70,38 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       builder: (_) => ListView.builder(
         itemCount: devices.length,
         itemBuilder: (context, index) {
-          final data = devices[index].data();
-          final id = devices[index].id;
+          final data =
+              devices[index] as Map<String, dynamic>; // ✅ Cast explicite
+          final id = data['id'] ?? '';
           return ListTile(
             leading: const Icon(Icons.sensors),
             title: Text(data['name'] ?? 'Device'),
             subtitle: Text("📍 ${data['location'] ?? ''}"),
             onTap: () async {
               Navigator.pop(context);
-              await FirebaseFirestore.instance
-                  .collection('plants')
-                  .doc(widget.plantId)
-                  .update({'deviceId': id}); // ou 'deviceId' si renommé
 
-              Fluttertoast.showToast(msg: "Device associé !");
+              final url = Uri.parse(
+                "https://greenislandback.onrender.com/plantid/connect",
+              );
+              try {
+                final response = await http.post(
+                  url,
+                  headers: {"Content-Type": "application/json"},
+                  body: jsonEncode({"plantId": widget.plantId, "uniqueID": id}),
+                );
+
+                if (response.statusCode == 200) {
+                  Fluttertoast.showToast(msg: "Device associé !");
+                } else {
+                  Fluttertoast.showToast(
+                    msg: "Backend erreur : ${response.body}",
+                  );
+                }
+              } catch (e) {
+                Fluttertoast.showToast(
+                  msg: "Erreur de connexion au backend : $e",
+                );
+              }
               setState(() {});
             },
           );
@@ -75,16 +109,12 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       ),
     );
   }
+
   // ⬆️ FIN AJOUT
 
   Future<void> _triggerWatering() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
-
     try {
       await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
           .collection('plants')
           .doc(widget.plantId)
           .update({'auto': true});
@@ -92,6 +122,26 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       Fluttertoast.showToast(msg: "🌿 Arrosage automatique activé !");
     } catch (e) {
       Fluttertoast.showToast(msg: "Erreur : $e");
+    }
+  }
+
+  Future<void> _resolveAddress(double lat, double lon) async {
+    final url = Uri.parse(
+      'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon',
+    );
+    try {
+      final response = await http.get(
+        url,
+        headers: {'User-Agent': 'SmartPlantApp/1.0'},
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          resolvedAddress = data['display_name'];
+        });
+      }
+    } catch (e) {
+      print("Erreur géolocalisation : $e");
     }
   }
 
@@ -116,6 +166,10 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    super.initState();
+    if (widget.plant.latitude != null && widget.plant.longitude != null) {
+      _resolveAddress(widget.plant.latitude!, widget.plant.longitude!);
+    }
     final plant = widget.plant;
 
     return Scaffold(
@@ -153,8 +207,15 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
+                  if (resolvedAddress != null)
+                    Text(
+                      resolvedAddress!,
+                      style: const TextStyle(fontStyle: FontStyle.italic),
+                    ),
+
+                  const SizedBox(height: 8),
                   SizedBox(
-                    height: 150,
+                    height: 200,
                     child: FlutterMap(
                       options: MapOptions(
                         center: LatLng(plant.latitude!, plant.longitude!),
@@ -162,7 +223,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                       ),
                       children: [
                         TileLayer(
-                          urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                          urlTemplate:
+                              "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
                           subdomains: ['a', 'b', 'c'],
                         ),
                         MarkerLayer(
@@ -171,7 +233,11 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                               width: 40.0,
                               height: 40.0,
                               point: LatLng(plant.latitude!, plant.longitude!),
-                              child: const Icon(Icons.location_pin, color: Colors.red),
+                              child: const Icon(
+                                Icons.location_pin,
+                                color: Colors.red,
+                                size: 32,
+                              ),
                             ),
                           ],
                         ),
@@ -182,12 +248,12 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               ),
 
             if ((plant.deviceId ?? '').isEmpty || plant.deviceId == 'none')
-            ElevatedButton.icon(
-              onPressed: _showDeviceSelector,
-              icon: const Icon(Icons.sensors),
-              label: const Text("Associer un capteur"),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            ),
+              ElevatedButton.icon(
+                onPressed: _showDeviceSelector,
+                icon: const Icon(Icons.sensors),
+                label: const Text("Associer un capteur"),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+              ),
 
             const SizedBox(height: 16),
             ElevatedButton.icon(
