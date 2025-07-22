@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:http/http.dart' as http;
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -42,13 +44,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _unlinkDevice(String docId) async {
-    await FirebaseFirestore.instance.collection('devices').doc(docId).update({'userId': null});
+    await FirebaseFirestore.instance.collection('devices').doc(docId).update({
+      'userId': null,
+      'status': 'free',
+    });
     Fluttertoast.showToast(msg: "Device dissocié");
   }
 
   Future<void> _deleteDevice(String docId) async {
     await FirebaseFirestore.instance.collection('devices').doc(docId).delete();
     Fluttertoast.showToast(msg: "Device supprimé");
+  }
+
+  Future<void> _connectToDevice(String deviceId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final url = Uri.parse("https://greenislandback.onrender.com/arduino/connect");
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "userid": user.uid,
+          "uniqueID": deviceId,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        await FirebaseFirestore.instance.collection('devices').doc(deviceId).update({
+          'status': 'active',
+          'userId': user.uid,
+        });
+
+        Fluttertoast.showToast(msg: "Appareil connecté avec succès");
+      } else {
+        Fluttertoast.showToast(msg: "Erreur backend : ${response.body}");
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Erreur connexion : $e");
+    }
   }
 
   @override
@@ -81,6 +116,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 trailing: PopupMenuButton<String>(
                   onSelected: (value) async {
                     switch (value) {
+                      case 'connect':
+                        await _connectToDevice(doc.id);
+                        break;
                       case 'rename':
                         await _renameDevice(doc.id, data['name'] ?? '');
                         break;
@@ -93,6 +131,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     }
                   },
                   itemBuilder: (context) => [
+                    const PopupMenuItem(value: 'connect', child: Text("Connecter")),
                     const PopupMenuItem(value: 'rename', child: Text("Renommer")),
                     const PopupMenuItem(value: 'unlink', child: Text("Dissocier")),
                     const PopupMenuItem(value: 'delete', child: Text("Supprimer")),
