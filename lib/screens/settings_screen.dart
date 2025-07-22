@@ -66,17 +66,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         url,
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
-          "userid": user.uid,
+          "userId": user.uid,
           "uniqueID": deviceId,
         }),
       );
 
       if (response.statusCode == 200) {
-        await FirebaseFirestore.instance.collection('devices').doc(deviceId).update({
-          'status': 'active',
-          'userId': user.uid,
-        });
-
         Fluttertoast.showToast(msg: "Appareil connecté avec succès");
       } else {
         Fluttertoast.showToast(msg: "Erreur backend : ${response.body}");
