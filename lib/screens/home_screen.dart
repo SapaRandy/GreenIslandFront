@@ -7,6 +7,7 @@ import 'add_plant_screen.dart' as add_plant;
 import 'profile_screen.dart';
 import '../models/plant.dart';
 import '../models/plants_data.dart'; // Import des données enrichies
+import '../models/plants_data.dart' show PlantData;
 import '../widgets/plant_card.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -66,7 +67,7 @@ class HomeScreen extends StatelessWidget {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.brown,
+                    backgroundColor: const Color.fromARGB(255, 59, 129, 49),
                     foregroundColor: Colors.white,
                     shape: const CircleBorder(),
                     padding: const EdgeInsets.all(12),
@@ -77,11 +78,12 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
 
+          // Liste des plantes
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('plants')
-                  .where('userId', isEqualTo: userId) // 🔥 Ajout du filtre utilisateur
+                  .where('uid', isEqualTo: userId)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
@@ -107,34 +109,44 @@ class HomeScreen extends StatelessWidget {
                     final data = plantDocs[index].data() as Map<String, dynamic>;
                     final plant = Plant.fromMap(data, plantDocs[index].id);
 
-                    final enriched = plantsData.firstWhere(
-                      (p) => p.name.trim().toLowerCase() == plant.name.trim().toLowerCase(),
-                      orElse: () => PlantData(name: '', details: {}),
-                    );
+                    return FutureBuilder<DocumentSnapshot>(
+                      future: FirebaseFirestore.instance
+                          .collection('plant_data')
+                          .doc(plant.name.toLowerCase().trim()) // nom = clé
+                          .get(),
+                      builder: (context, snapshot) {
+                        PlantData? enriched;
 
-                    return PlantCard(
-                      plant: plant,
-                      enrichedDetails: enriched,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PlantDetailScreen(
-                              plant: plant,
-                              plantId: plant.id,
-                              // initialImageUrl: plant.imageUrl, // Removed because it's not defined
-                            ),
-                          ),
+                        if (snapshot.connectionState == ConnectionState.done &&
+                            snapshot.hasData &&
+                            snapshot.data!.exists) {
+                          final docData = snapshot.data!.data() as Map<String, dynamic>;
+                          enriched = PlantData.fromJson(docData);
+                        }
+
+                        return PlantCard(
+                          plant: plant,
+                          enrichedDetails: enriched,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PlantDetailScreen(
+                                  plant: plant,
+                                  plantId: plant.id,
+                                ),
+                              ),
+                            );
+                          },
                         );
                       },
                     );
                   },
                 );
+
               },
             ),
           ),
-
-
         ],
       ),
     );

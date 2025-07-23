@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 import '../models/plant.dart';
 import '../widgets/sensor_data_widget.dart';
@@ -11,11 +13,13 @@ import '../widgets/sensor_data_widget.dart';
 class PlantDetailScreen extends StatefulWidget {
   final Plant plant;
   final String plantId;
+  final String deviceId;
 
-  const PlantDetailScreen({
+  PlantDetailScreen({
     Key? key,
     required this.plant,
     required this.plantId,
+    this.deviceId = '',
   }) : super(key: key);
 
   @override
@@ -23,62 +27,166 @@ class PlantDetailScreen extends StatefulWidget {
 }
 
 class _PlantDetailScreenState extends State<PlantDetailScreen> {
-  List<Map<String, dynamic>> _careHistory = [];
-  bool _isLoading = true;
+  String? resolvedAddress;
 
   @override
   void initState() {
     super.initState();
-    _loadCareHistory();
+
+    final lat = widget.plant.latitude;
+    final lon = widget.plant.longitude;
+
+    if (lat != null && lon != null) {
+      _resolveAddress(lat, lon);
+    }
   }
 
-  Future<void> _loadCareHistory() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+  // ⬇️ AJOUT
+  Future<void> _showDeviceSelector() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
 
-    final soinsSnapshot = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('mesPlantes')
-        .doc(widget.plantId)
-        .collection('soins')
-        .orderBy('date', descending: true)
-        .get();
+    final url = Uri.parse(
+      "https://greenislandback.onrender.com/plantid/connect/$userId/",
+    );
+    List<dynamic> devices = [];
 
-    setState(() {
-      _careHistory = soinsSnapshot.docs.map((d) => d.data()).toList();
-      _isLoading = false;
-    });
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonList = jsonDecode(response.body);
+        List<Map<String, dynamic>> loadedDevices = [];
+        
+        if (jsonList.isEmpty) {
+          Fluttertoast.showToast(msg: "Aucun device disponible.");
+          return;
+        }
+
+        for (var deviceId in jsonList) {
+          if (deviceId is String) {
+              loadedDevices.add({
+                'id': deviceId,
+                'name': 'Capteur $deviceId', // Valeur placeholder
+                'location': 'Sans localisation',
+              });
+          }
+        }
+        devices = loadedDevices;
+      } else {
+        Fluttertoast.showToast(msg: "Erreur backend : ${response.body}");
+        return;
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Erreur connexion : $e");
+      return;
+    }
+
+    // ✅ Affichage des devices dans le modal
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => ListView.builder(
+        itemCount: devices.length,
+        itemBuilder: (context, index) {
+          final data =
+              devices[index] as Map<String, dynamic>; // ✅ Cast explicite
+          final id = data['id'] ?? '';
+          return ListTile(
+            leading: const Icon(Icons.sensors),
+            title: Text(data['name'] ?? 'Device'),
+            subtitle: Text("📍 ${data['location'] ?? ''}"),
+            onTap: () async {
+              Navigator.pop(context);
+
+              final url = Uri.parse(
+                "https://greenislandback.onrender.com/plantid/connect/",
+              );
+              try {
+                final response = await http.post(
+                  url,
+                  headers: {"Content-Type": "application/json"},
+                  body: jsonEncode({"plantId": widget.plantId, "uniqueID": id}),
+                );
+
+                if (response.statusCode == 200) {
+                  Fluttertoast.showToast(msg: "Device associé !");
+                } else {
+                  Fluttertoast.showToast(
+                    msg: "Backend erreur : ${response.body}",
+                  );
+                }
+              } catch (e) {
+                Fluttertoast.showToast(
+                  msg: "Erreur de connexion au backend : $e",
+                );
+              }
+              setState(() {});
+            },
+          );
+        },
+      ),
+    );
   }
+
+  // ⬆️ FIN AJOUT
 
   Future<void> _triggerWatering() async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('plants')
+          .doc(widget.plantId)
+          .update({'auto': true});
+
+      Fluttertoast.showToast(msg: "🌿 Arrosage automatique activé !");
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Erreur : $e");
+    }
+  }
+
+  Future<void> _resolveAddress(double lat, double lon) async {
+    final url = Uri.parse(
+      'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon',
+    );
+    try {
+      final response = await http.get(
+        url,
+        headers: {'User-Agent': 'SmartPlantApp/1.0'},
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          resolvedAddress = data['display_name'];
+        });
+      }
+    } catch (e) {
+      print("Erreur géolocalisation : $e");
+    }
+  }
+
+  Future<void> _deletePlant() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
 
-    final now = DateTime.now();
+    try {
+      await FirebaseFirestore.instance
+          .collection('plants')
+          .doc(widget.plantId)
+          .delete();
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .collection('mesPlantes')
-        .doc(widget.plantId)
-        .collection('soins')
-        .add({'type': 'Arrosage', 'date': now});
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('🌿 Arrosage déclenché')));
-
-    _loadCareHistory();
+      Fluttertoast.showToast(msg: "Plante supprimée !");
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Erreur suppression : $e");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final plant = widget.plant;
 
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    final plant = widget.plant;
 
     return Scaffold(
       appBar: AppBar(title: Text(plant.name)),
@@ -97,12 +205,15 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                 ),
               ),
             const SizedBox(height: 12),
-            SensorDataWidget(plantDocId: widget.plantId),
+
+            SensorDataWidget(plantId: widget.plantId),
             const SizedBox(height: 16),
+
             Text(
               plant.name,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
+
             if (plant.latitude != null && plant.longitude != null)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,8 +223,15 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
+                  if (resolvedAddress != null)
+                    Text(
+                      resolvedAddress!,
+                      style: const TextStyle(fontStyle: FontStyle.italic),
+                    ),
+
+                  const SizedBox(height: 8),
                   SizedBox(
-                    height: 150,
+                    height: 200,
                     child: FlutterMap(
                       options: MapOptions(
                         center: LatLng(plant.latitude!, plant.longitude!),
@@ -121,9 +239,9 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                       ),
                       children: [
                         TileLayer(
-                          urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                          urlTemplate:
+                              "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
                           subdomains: ['a', 'b', 'c'],
-                          userAgentPackageName: 'com.example.yourapp',
                         ),
                         MarkerLayer(
                           markers: [
@@ -131,7 +249,11 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                               width: 40.0,
                               height: 40.0,
                               point: LatLng(plant.latitude!, plant.longitude!),
-                              child: const Icon(Icons.location_pin, color: Colors.red),
+                              child: const Icon(
+                                Icons.location_pin,
+                                color: Colors.red,
+                                size: 32,
+                              ),
                             ),
                           ],
                         ),
@@ -141,50 +263,58 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                 ],
               ),
 
+            if ((plant.deviceId ?? '').isEmpty || plant.deviceId == 'none')
+              ElevatedButton.icon(
+                onPressed: _showDeviceSelector,
+                icon: const Icon(Icons.sensors),
+                label: const Text("Associer un capteur"),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+              ),
+
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _triggerWatering,
               icon: const Icon(Icons.water_drop),
-              label: const Text("Arroser maintenant"),
+              label: const Text("Activer l’arrosage automatique"),
             ),
+
             const SizedBox(height: 24),
-            const Text(
-              "🕓 Historique des soins",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text("Confirmation"),
+                    content: const Text("Supprimer cette plante ?"),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text("Annuler"),
+                      ),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _deletePlant();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        child: const Text("Supprimer"),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              icon: const Icon(Icons.delete),
+              label: const Text("Supprimer la plante"),
             ),
-            const SizedBox(height: 8),
-            ..._careHistory.map((entry) {
-              final date = (entry['date'] as Timestamp).toDate();
-              final formatted = DateFormat('dd/MM/yyyy HH:mm').format(date);
-              return ListTile(
-                leading: const Icon(Icons.local_florist),
-                title: Text(entry['type'] ?? 'Soins'),
-                subtitle: Text(formatted),
-              );
-            }),
-            if (_careHistory.isEmpty) const Text("Aucun soin enregistré."),
           ],
         ),
       ),
     );
   }
 }
-
-
-
-
-
-
-// Quand je click sur detailpalntScreen ca s'affiche je vois tous les éléments meme la carte, mais ensuite ca crash et lapp se ferme. J'ai ca dans le terminal apres l'incident:
-// E/AndroidRuntime(12575): java.lang.IllegalStateException: API key not found.  Check that <meta-data android:name="com.google.android.geo.API_KEY" android:value="your API key"/> is in the <application> element of AndroidManifest.xml
-// E/AndroidRuntime(12575):        at com.google.maps.api.android.lib6.common.g.b(:com.google.android.gms.policy_maps_core_dynamite@252130104@252130101025.762146652.762146652:117)
-// E/AndroidRuntime(12575):        at com.google.maps.api.android.lib6.impl.hq.run(:com.google.android.gms.policy_maps_core_dynamite@252130104@252130101025.762146652.762146652:84)
-// E/AndroidRuntime(12575):        at java.util.concurrent.ThreadPoolExecutor.processTask(ThreadPoolExecutor.java:1187)
-// E/AndroidRuntime(12575):        at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1152)
-// E/AndroidRuntime(12575):        at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:641)
-// E/AndroidRuntime(12575):        at java.lang.Thread.run(Thread.java:784)
-// D/ZrHung.AppEyeUiProbe(12575): stop checker.
-// I/Process (12575): Sending signal. PID: 12575 SIG: 9
-// Lost connection to device.
-
-// Pourtant j'utilise l'app de flutter normalement ???

@@ -20,10 +20,14 @@ class AddPlantScreen extends StatefulWidget {
 class _AddPlantScreenState extends State<AddPlantScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  bool _isOutdoor = false;
-  File? _pickedImage;
-  bool _isLoading = false;
-  Map<String, dynamic>? _foundPlantData;
+bool _isOutdoor = false;
+File? _pickedImage;
+bool _isLoading = false;
+Map<String, dynamic>? _foundPlantData;
+
+Map<String, dynamic> details = {};
+
+
 
   Future<void> _pickImage() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
@@ -52,12 +56,11 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
       return;
     }
     setState(() => _isLoading = true);
+
     try {
       final uri = Uri.parse('https://greenislandback.onrender.com/plantid/identify/');
       final request = http.MultipartRequest('POST', uri)
-        ..files.add(
-          await http.MultipartFile.fromPath('image', _pickedImage!.path),
-        );
+        ..files.add(await http.MultipartFile.fromPath('image', _pickedImage!.path));
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
 
@@ -66,8 +69,24 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         final name = data['plant_name'];
         if (name != null) {
           _nameController.text = name;
+
+          final infoUri = Uri.parse('https://greenislandback.onrender.com/plantid/infos/?name=$name');
+          final infoResponse = await http.get(infoUri);
+
+          Map<String, dynamic> details = {};
+          if (infoResponse.statusCode == 200) {
+            final infoData = jsonDecode(infoResponse.body);
+            details = infoData['details'] ?? {};
+          }
+
+          setState(() {
+            _foundPlantData = {
+              'name': name,
+              'details': details,
+            };
+          });
+
           Fluttertoast.showToast(msg: "Plante reconnue : $name");
-          await _searchPlantByName(name);
         } else {
           Fluttertoast.showToast(msg: "Plante non reconnue");
         }
@@ -88,50 +107,24 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     try {
       final queryLower = name.trim().toLowerCase();
 
-      // Étape 1 : récupérer toutes les plantes de l’utilisateur
-      final allDocs = await FirebaseFirestore.instance
-          .collection('plants')
-          .doc(FirebaseAuth.instance.currentUser!.uid)
-          .collection('plants_data')
-          .get();
+      final infoUri = Uri.parse('https://greenislandback.onrender.com/plantid/infos/?name=$queryLower');
+      final infoResponse = await http.get(infoUri);
 
-      // Recherche floue locale
-      final matchingDocs = allDocs.docs.where((doc) {
-        final plantName = (doc['name'] ?? '').toString().toLowerCase();
-        return plantName.contains(queryLower);
-      }).toList();
-
-      if (matchingDocs.isEmpty) {
-        Fluttertoast.showToast(msg: "Aucune plante trouvée dans vos données.");
+      if (infoResponse.statusCode != 200) {
+        Fluttertoast.showToast(msg: "Plante non trouvée dans la base.");
         setState(() => _foundPlantData = null);
         return;
       }
 
-      final plantData = matchingDocs.first
-          .data(); // Tu peux afficher plus tard une liste si tu veux
+      final infoData = jsonDecode(infoResponse.body);
+      final details = infoData['details'] ?? {};
 
-      // Étape 2 : enrichir depuis 'plants_data' si possible
-      // Étape 2 : enrichir depuis 'plants_data'
-      final enrichSnapshot = await FirebaseFirestore.instance
-          .collection('plants_data')
-          .get();
+      setState(() => _foundPlantData = {
+        'name': queryLower,
+        'details': details,
+      });
 
-      QueryDocumentSnapshot<Map<String, dynamic>>? enrichMatch;
-      try {
-        enrichMatch = enrichSnapshot.docs.firstWhere(
-          (doc) =>
-              (doc['name'] ?? '').toString().toLowerCase().contains(queryLower),
-        );
-      } catch (e) {
-        enrichMatch = null;
-      }
-
-      if (enrichMatch != null) {
-        final enriched = enrichMatch.data();
-        plantData['details'] = enriched['details'] ?? {};
-      }
-
-      setState(() => _foundPlantData = plantData);
+      Fluttertoast.showToast(msg: "Plante trouvée : $queryLower");
     } catch (e) {
       Fluttertoast.showToast(msg: "Erreur lors de la recherche : $e");
       setState(() => _foundPlantData = null);
@@ -142,13 +135,18 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
 
   Future<void> _submit() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null || _foundPlantData == null) return;
+    if (uid == null || _foundPlantData == null) {
+      Fluttertoast.showToast(msg: "Impossible d’enregistrer. Plante non identifiée.");
+      return;
+    }
 
     setState(() => _isLoading = true);
     String? imageUrl;
+
     if (_pickedImage != null) {
       imageUrl = await _uploadImageToStorage(_pickedImage!);
       if (imageUrl == null) {
+        Fluttertoast.showToast(msg: "L’image n’a pas pu être sauvegardée.");
         setState(() => _isLoading = false);
         return;
       }
@@ -158,8 +156,7 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     if (_isOutdoor) {
       try {
         var perm = await Geolocator.checkPermission();
-        if (perm == LocationPermission.denied ||
-            perm == LocationPermission.deniedForever) {
+        if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
           perm = await Geolocator.requestPermission();
         }
         position = await Geolocator.getCurrentPosition();
@@ -169,9 +166,9 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
     }
 
     try {
-      final userDoc = FirebaseFirestore.instance.collection('users').doc(uid);
       final plantData = {
         ..._foundPlantData!,
+        'uid': uid,
         'name': _nameController.text.trim(),
         'imageUrl': imageUrl ?? _foundPlantData!['imageUrl'] ?? '',
         'addedAt': FieldValue.serverTimestamp(),
@@ -182,11 +179,32 @@ class _AddPlantScreenState extends State<AddPlantScreen> {
         },
       };
 
-      await userDoc.update({
-        'mesPlantes': FieldValue.arrayUnion([plantData]),
-      });
+      await FirebaseFirestore.instance.collection('plants').add(plantData);
+
+      final plantNameLower = _nameController.text.trim().toLowerCase();
+      if (plantNameLower.isNotEmpty) {
+        final query = await FirebaseFirestore.instance
+            .collection('plants_data')
+            .where('name', isEqualTo: plantNameLower)
+            .limit(1)
+            .get();
+
+        final details = _foundPlantData!['details'] ?? {};
+
+        if (query.docs.isEmpty) {
+          await FirebaseFirestore.instance.collection('plants_data').add({
+            'name': plantNameLower,
+            'details': details,
+          });
+        } else {
+          await query.docs.first.reference.set({
+            'details': details,
+          }, SetOptions(merge: true));
+        }
+      }
 
       if (!mounted) return;
+      Fluttertoast.showToast(msg: "Plante enregistrée avec succès !");
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
