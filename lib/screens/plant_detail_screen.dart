@@ -4,22 +4,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import '../widgets/last_measure_text.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import '../widgets/last_measure_text.dart';
 import '../models/plant.dart';
-import '../widgets/sensor_data_widget.dart';
-
-// ... imports identiques
-// (inchangés)
 
 class PlantDetailScreen extends StatefulWidget {
   final Plant plant;
   final String plantId;
   final String deviceId;
 
-  PlantDetailScreen({
+  const PlantDetailScreen({
     Key? key,
     required this.plant,
     required this.plantId,
@@ -32,7 +28,7 @@ class PlantDetailScreen extends StatefulWidget {
 
 class _PlantDetailScreenState extends State<PlantDetailScreen> {
   String? resolvedAddress;
-  bool? _isAuto; // ✅ suivi de l'état d’arrosage
+  bool? _isAuto;
 
   @override
   void initState() {
@@ -45,7 +41,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       _resolveAddress(lat, lon);
     }
 
-    _fetchAutoStatus(); // 🔄 récupérer le statut
+    _fetchAutoStatus();
   }
 
   Future<void> _fetchAutoStatus() async {
@@ -61,9 +57,25 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     }
   }
 
+  Future<Map<String, dynamic>?> fetchPlantData(String plantId) async {
+    final url = Uri.parse(
+        'https://greenislandback.onrender.com/plantid/data/$plantId/');
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        print("Erreur backend: ${response.statusCode}");
+        return null;
+      }
+    } catch (e) {
+      print("Erreur réseau: $e");
+      return null;
+    }
+  }
+
   Future<void> _toggleWateringMode() async {
     final newMode = !(_isAuto ?? true);
-
     try {
       await FirebaseFirestore.instance
           .collection('plants')
@@ -84,8 +96,42 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
     }
   }
 
-  // Affiche un sélecteur de capteur (exemple basique)
-   Future<void> _showDeviceSelector() async {
+  Future<void> _activeWatering() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('devices')
+          .where('plantId', isEqualTo: widget.plantId)
+          .limit(1)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        Fluttertoast.showToast(msg: "❌ Aucun capteur trouvé pour cette plante");
+        return;
+      }
+
+      final data = snapshot.docs.first.data();
+      final ip = data['IP'];
+
+      if (ip == null || ip.isEmpty) {
+        Fluttertoast.showToast(msg: "❌ Adresse IP manquante");
+        return;
+      }
+
+      final url = Uri.parse("http://$ip/on/");
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        Fluttertoast.showToast(msg: "💧 Arrosage activé !");
+      } else {
+        Fluttertoast.showToast(msg: "❌ Erreur ESP : ${response.statusCode}");
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Erreur : $e");
+    }
+  }
+
+   // Affiche un sélecteur de capteur (exemple basique)
+  Future<void> _showDeviceSelector() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) return;
 
@@ -173,12 +219,10 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       ),
     );
   }
-  // ⬆️ FIN AJOUT
 
   Future<void> _resolveAddress(double lat, double lon) async {
     final url = Uri.parse(
-      'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon',
-    );
+        'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=$lat&lon=$lon');
     try {
       final response = await http.get(
         url,
@@ -234,34 +278,62 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               ),
             const SizedBox(height: 12),
 
+            // 🔹 Dernières mesures en live
             LastMeasureText(plantId: widget.plantId),
             const SizedBox(height: 16),
 
+            // 🔹 Nom de la plante
             Text(
               plant.name,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 8),
+
+            // 🔹 Données enrichies depuis backend
+            FutureBuilder<Map<String, dynamic>?>(
+              future: fetchPlantData(widget.plantId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Text("Chargement des infos enrichies...");
+                }
+                if (!snapshot.hasData || snapshot.data == null) {
+                  return const Text("❌ Aucune donnée enrichie");
+                }
+
+                final data = snapshot.data!;
+                final Map<String, dynamic> details =
+                    Map<String, dynamic>.from(data['data'] ?? {});
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: details.entries
+                      .map((e) =>
+                          Text("• ${e.key} : ${e.value}", style: const TextStyle(fontSize: 14)))
+                      .toList(),
+                );
+              },
+            ),
+
+            const SizedBox(height: 16),
 
             if (plant.latitude != null && plant.longitude != null)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    "📍 Localisation",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  const Text("📍 Localisation",
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   if (resolvedAddress != null)
-                    Text(
-                      resolvedAddress!,
-                      style: const TextStyle(fontStyle: FontStyle.italic),
-                    ),
+                    Text(resolvedAddress!,
+                        style: const TextStyle(fontStyle: FontStyle.italic)),
                   const SizedBox(height: 8),
                   SizedBox(
                     height: 200,
                     child: FlutterMap(
                       options: MapOptions(
-                        center: LatLng(plant.latitude!, plant.longitude!),
+                        center:
+                            LatLng(plant.latitude!, plant.longitude!),
                         zoom: 14.0,
                       ),
                       children: [
@@ -275,7 +347,8 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                             Marker(
                               width: 40.0,
                               height: 40.0,
-                              point: LatLng(plant.latitude!, plant.longitude!),
+                              point: LatLng(
+                                  plant.latitude!, plant.longitude!),
                               child: const Icon(
                                 Icons.location_pin,
                                 color: Colors.red,
@@ -289,27 +362,32 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                   ),
                 ],
               ),
+            const SizedBox(height: 16),
 
             if ((plant.deviceId ?? '').isEmpty || plant.deviceId == 'none')
               ElevatedButton.icon(
-                onPressed: _showDeviceSelector,
+                onPressed: () {
+                  _showDeviceSelector();
+                },
                 icon: const Icon(Icons.sensors),
                 label: const Text("Associer un capteur"),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
               ),
 
-            const SizedBox(height: 16),
-
-            if (_isAuto != null)
+            if (_isAuto != null) ...[
               ElevatedButton.icon(
                 onPressed: _toggleWateringMode,
                 icon: const Icon(Icons.water_drop),
-                label: Text(
-                  _isAuto!
-                      ? "Activer l’arrosage manuel"
-                      : "Désactiver l’arrosage manuel",
-                ),
+                label: Text(_isAuto!
+                    ? "Désactiver l’arrosage automatique"
+                    : "Activer l’arrosage automatique"),
               ),
+              ElevatedButton.icon(
+                onPressed: _activeWatering,
+                icon: const Icon(Icons.water),
+                label: const Text("Activer l’arrosage manuel"),
+              ),
+            ],
 
             const SizedBox(height: 24),
             ElevatedButton.icon(
