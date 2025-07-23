@@ -117,11 +117,11 @@ Map<String, dynamic> details = {};
       }
 
       final infoData = jsonDecode(infoResponse.body);
-      final details = infoData['details'] ?? {};
+      final plantId = infoData['name'] ?? {};
 
       setState(() => _foundPlantData = {
         'name': queryLower,
-        'details': details,
+        'plantId': plantId,
       });
 
       Fluttertoast.showToast(msg: "Plante trouvée : $queryLower");
@@ -139,7 +139,7 @@ Map<String, dynamic> details = {};
       Fluttertoast.showToast(msg: "Impossible d’enregistrer. Plante non identifiée.");
       return;
     }
-
+    final plantId = _foundPlantData!['plantId'] ?? '';
     setState(() => _isLoading = true);
     String? imageUrl;
 
@@ -170,6 +170,7 @@ Map<String, dynamic> details = {};
         ..._foundPlantData!,
         'uid': uid,
         'name': _nameController.text.trim(),
+        'plantId': plantId,
         'imageUrl': imageUrl ?? _foundPlantData!['imageUrl'] ?? '',
         'addedAt': FieldValue.serverTimestamp(),
         'isOutdoor': _isOutdoor,
@@ -269,7 +270,6 @@ Map<String, dynamic> details = {};
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     Text("Nom : ${_foundPlantData!['name'] ?? '-'}"),
-                    Text("Détails : ${_foundPlantData!['details'] ?? '-'}"),
                     if (_foundPlantData!['imageUrl'] != null)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
