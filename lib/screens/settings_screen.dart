@@ -44,18 +44,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _unlinkDevice(String docId) async {
-    await FirebaseFirestore.instance.collection('devices').doc(docId).update({
-      'userId': null,
-      'status': 'free',
-    });
-    Fluttertoast.showToast(msg: "Device dissocié");
+  try {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('devices')
+        .doc(docId)
+        .get();
+
+    final plantId = snapshot.data()?['plantId'];
+
+    if (plantId == null) {
+      print("Aucune plante liée à ce capteur.");
+      return;
+    }
+
+    final url = Uri.parse(
+      "https://greenislandback.onrender.com/plantid/connect/$docId/$plantId/",
+    );
+
+    final response = await http.delete(url); // Appel DELETE
+
+    if (response.statusCode == 200) {
+      Fluttertoast.showToast(msg: "Dissociation réussie !");
+      // Tu peux afficher un toast ou rafraîchir l'UI si besoin
+    } else {
+      Fluttertoast.showToast(msg: "Erreur ${response.statusCode}");
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur connexion : $e")),
+      );
   }
+}
 
   Future<void> _deleteDevice(String docId) async {
-    await FirebaseFirestore.instance.collection('devices').doc(docId).delete();
-    Fluttertoast.showToast(msg: "Device supprimé");
-  }
+    final url = Uri.parse("https://greenislandback.onrender.com/arduino/connect/$docId/");
 
+    try {
+      final response = await http.delete(
+        url,
+        headers: {"Content-Type": "application/json"},
+      );
+
+      if (response.statusCode == 200) {
+        Fluttertoast.showToast(msg: "Device supprimé");
+      } else {
+        Fluttertoast.showToast(msg: "Erreur ${response.statusCode}");
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur connexion : $e")),
+      );
+    }
+  }
+    
   Future<void> _connectToDevice(String deviceId) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;

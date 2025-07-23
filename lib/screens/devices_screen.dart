@@ -29,16 +29,17 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
       if (response.statusCode == 200) {
         final List<dynamic> jsonList = jsonDecode(response.body);
-        final devices = jsonList.map<Map<String, dynamic>>((item) {
-          return {
-            'id': item['id'] ?? '',
-            'name': item['name'] ?? 'Sans nom',
-            'location': item['location'] ?? '',
-          };
-        }).toList();
+        List<Map<String, dynamic>> loadedDevices = [];
 
+        for (var deviceId in jsonList) {
+          if (deviceId is String) {
+              loadedDevices.add({
+                'id': deviceId,
+              });
+          }
+      }
         setState(() {
-          availableDevices = devices;
+          availableDevices = loadedDevices;
           isLoading = false;
         });
       } else {
@@ -56,25 +57,22 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final url = Uri.parse("https://greenislandback.onrender.com/arduino/connect");
+
+    final url = Uri.parse("https://greenislandback.onrender.com/arduino/connect/");
 
     try {
       final response = await http.post(
         url,
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
-          "userid": user.uid,
+          "userId": user.uid,
           "uniqueID": deviceId,
         }),
       );
 
-      if (response.statusCode == 200) {
-        // Met à jour le statut dans Firebase si besoin
-        await FirebaseFirestore.instance.collection('devices').doc(deviceId).update({
-          'status': 'active',
-          'userId': user.uid,
-        });
 
+
+      if (response.statusCode == 200) {
         setState(() {
           availableDevices.removeWhere((d) => d['id'] == deviceId);
         });
@@ -119,8 +117,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                     return Card(
                       child: ListTile(
                         leading: const Icon(Icons.devices, color: Colors.green),
-                        title: Text(device['name']),
-                        subtitle: Text("Lieu : ${device['location']}"),
+                        title: Text(device['id']),
                         trailing: ElevatedButton.icon(
                           onPressed: () => _connectToDevice(device['id']),
                           icon: const Icon(Icons.link),

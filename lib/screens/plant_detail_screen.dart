@@ -4,11 +4,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import '../widgets/last_measure_text.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
 import '../models/plant.dart';
 import '../widgets/sensor_data_widget.dart';
+
+// ... imports identiques
+// (inchangés)
 
 class PlantDetailScreen extends StatefulWidget {
   final Plant plant;
@@ -28,30 +32,90 @@ class PlantDetailScreen extends StatefulWidget {
 
 class _PlantDetailScreenState extends State<PlantDetailScreen> {
   String? resolvedAddress;
+  bool? _isAuto; // ✅ suivi de l'état d’arrosage
 
-  // ⬇️ AJOUT
-  Future<void> _showDeviceSelector() async {
+  @override
+  void initState() {
+    super.initState();
+
+    final lat = widget.plant.latitude;
+    final lon = widget.plant.longitude;
+
+    if (lat != null && lon != null) {
+      _resolveAddress(lat, lon);
+    }
+
+    _fetchAutoStatus(); // 🔄 récupérer le statut
+  }
+
+  Future<void> _fetchAutoStatus() async {
+    final doc = await FirebaseFirestore.instance
+        .collection('plants')
+        .doc(widget.plantId)
+        .get();
+
+    if (doc.exists) {
+      setState(() {
+        _isAuto = doc.data()?['auto'] ?? true;
+      });
+    }
+  }
+
+  Future<void> _toggleWateringMode() async {
+    final newMode = !(_isAuto ?? true);
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('plants')
+          .doc(widget.plantId)
+          .update({'auto': newMode});
+
+      setState(() {
+        _isAuto = newMode;
+      });
+
+      Fluttertoast.showToast(
+        msg: newMode
+            ? "🌿 Arrosage automatique activé !"
+            : "💧 Arrosage manuel activé !",
+      );
+    } catch (e) {
+      Fluttertoast.showToast(msg: "Erreur : $e");
+    }
+  }
+
+  // Affiche un sélecteur de capteur (exemple basique)
+   Future<void> _showDeviceSelector() async {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (userId == null) return;
 
     final url = Uri.parse(
-      "https://greenislandback.onrender.com/plantid/deviceslist",
+      "https://greenislandback.onrender.com/plantid/connect/$userId/",
     );
     List<dynamic> devices = [];
 
     try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"userId": userId}),
-      );
+      final response = await http.get(url);
 
       if (response.statusCode == 200) {
-        devices = jsonDecode(response.body);
-        if (devices.isEmpty) {
+        final List<dynamic> jsonList = jsonDecode(response.body);
+        List<Map<String, dynamic>> loadedDevices = [];
+        
+        if (jsonList.isEmpty) {
           Fluttertoast.showToast(msg: "Aucun device disponible.");
           return;
         }
+
+        for (var deviceId in jsonList) {
+          if (deviceId is String) {
+              loadedDevices.add({
+                'id': deviceId,
+                'name': 'Capteur $deviceId', // Valeur placeholder
+                'location': 'Sans localisation',
+              });
+          }
+        }
+        devices = loadedDevices;
       } else {
         Fluttertoast.showToast(msg: "Erreur backend : ${response.body}");
         return;
@@ -81,7 +145,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               Navigator.pop(context);
 
               final url = Uri.parse(
-                "https://greenislandback.onrender.com/plantid/connect",
+                "https://greenislandback.onrender.com/plantid/connect/",
               );
               try {
                 final response = await http.post(
@@ -109,21 +173,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
       ),
     );
   }
-
   // ⬆️ FIN AJOUT
-
-  Future<void> _triggerWatering() async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('plants')
-          .doc(widget.plantId)
-          .update({'auto': true});
-
-      Fluttertoast.showToast(msg: "🌿 Arrosage automatique activé !");
-    } catch (e) {
-      Fluttertoast.showToast(msg: "Erreur : $e");
-    }
-  }
 
   Future<void> _resolveAddress(double lat, double lon) async {
     final url = Uri.parse(
@@ -151,8 +201,6 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
     try {
       await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
           .collection('plants')
           .doc(widget.plantId)
           .delete();
@@ -166,10 +214,6 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    super.initState();
-    if (widget.plant.latitude != null && widget.plant.longitude != null) {
-      _resolveAddress(widget.plant.latitude!, widget.plant.longitude!);
-    }
     final plant = widget.plant;
 
     return Scaffold(
@@ -190,7 +234,7 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               ),
             const SizedBox(height: 12),
 
-            SensorDataWidget(plantId: widget.plantId),
+            LastMeasureText(plantId: widget.plantId),
             const SizedBox(height: 16),
 
             Text(
@@ -212,7 +256,6 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
                       resolvedAddress!,
                       style: const TextStyle(fontStyle: FontStyle.italic),
                     ),
-
                   const SizedBox(height: 8),
                   SizedBox(
                     height: 200,
@@ -256,11 +299,17 @@ class _PlantDetailScreenState extends State<PlantDetailScreen> {
               ),
 
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _triggerWatering,
-              icon: const Icon(Icons.water_drop),
-              label: const Text("Activer l’arrosage automatique"),
-            ),
+
+            if (_isAuto != null)
+              ElevatedButton.icon(
+                onPressed: _toggleWateringMode,
+                icon: const Icon(Icons.water_drop),
+                label: Text(
+                  _isAuto!
+                      ? "Activer l’arrosage manuel"
+                      : "Désactiver l’arrosage manuel",
+                ),
+              ),
 
             const SizedBox(height: 24),
             ElevatedButton.icon(
