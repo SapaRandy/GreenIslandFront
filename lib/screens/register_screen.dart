@@ -65,7 +65,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 40),
-                const Icon(Icons.eco, size: 64, color: Colors.brown),
+                const Icon(Icons.eco, size: 64, color: Colors.green),
                 const SizedBox(height: 16),
                 const Text(
                   'Create Account',
@@ -137,7 +137,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       const SizedBox(height: 20),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.brown,
+                          backgroundColor: Colors.green,
                           minimumSize: const Size.fromHeight(48),
                         ),
                         onPressed: _submitForm,
@@ -153,7 +153,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             child: const Text(
                               "Sign in",
                               style: TextStyle(
-                                color: Colors.brown,
+                                color: Colors.green,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

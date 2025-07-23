@@ -1,70 +1,118 @@
 import 'package:flutter/material.dart';
-import '../models/plant.dart';
-import 'package:intl/intl.dart' as intl;
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
-class PlantCard extends StatelessWidget {
+import '../models/plant.dart';
+import '../models/plants_data.dart';
+
+class PlantCard extends StatefulWidget {
   final Plant plant;
   final VoidCallback onTap;
+  final PlantData? enrichedDetails;
 
-  const PlantCard({super.key, required this.plant, required this.onTap});
+  const PlantCard({
+    Key? key,
+    required this.plant,
+    required this.onTap,
+    this.enrichedDetails,
+  }) : super(key: key);
+
+  @override
+  State<PlantCard> createState() => _PlantCardState();
+}
+
+class _PlantCardState extends State<PlantCard> {
+  late Future<Map<String, dynamic>?> lastMeasureFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    lastMeasureFuture = fetchLastMeasure(widget.plant.id);
+  }
+
+  Future<Map<String, dynamic>?> fetchLastMeasure(String plantId) async {
+    final url = Uri.parse(
+        'https://greenislandback.onrender.com/plantid/mesures/$plantId/');
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        print("Erreur backend: ${response.statusCode}");
+        return null;
+      }
+    } catch (e) {
+      print("Erreur réseau: $e");
+      return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final formattedDate = plant.createdAt != null
-        ? intl.DateFormat('dd/MM/yyyy').format(plant.createdAt!.toDate())
-        : 'Date inconnue';
+    Widget subtitleWidget;
 
-    final imageUrl =
-        '${plant.imageUrl ?? 'https://source.unsplash.com/featured/?plant'}?t=${DateTime.now().millisecondsSinceEpoch}';
+    // Si infos enrichies disponibles
+    if (widget.enrichedDetails != null &&
+        widget.enrichedDetails!.details.isNotEmpty) {
+      subtitleWidget = Text(
+        '🌱 Origine : ${widget.enrichedDetails!.details['Origine'] ?? 'Inconnue'}',
+      );
+    } else {
+      subtitleWidget = FutureBuilder<Map<String, dynamic>?>(
+        future: lastMeasureFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Text("Chargement des mesures...");
+          }
+
+          if (!snapshot.hasData || snapshot.data == null) {
+            return const Text("Aucune mesure disponible");
+          }
+
+          final data = snapshot.data!;
+          final temp = (data['temperature'] is num)
+              ? (data['temperature'] as num).toStringAsFixed(1)
+              : 'N/A';
+          final eau = (data['niveau_eau'] is num)
+              ? (data['niveau_eau'] as num).toStringAsFixed(1)
+              : 'N/A';
+          final hum = (data['humidite'] is num)
+              ? (data['humidite'] as num).toStringAsFixed(1)
+              : 'N/A';
+
+          return Text("💧 Eau : $eau cm • 🌡️ Temp : $temp °C • 💦 Hum : $hum%");
+        },
+      );
+    }
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      elevation: 3,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 4,
       child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            imageUrl,
-            width: 60,
-            height: 60,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) =>
-                const Icon(Icons.image_not_supported, size: 60),
-          ),
+          child: widget.plant.imageUrl.isNotEmpty
+              ? Image.network(
+                  widget.plant.imageUrl,
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const Icon(Icons.broken_image, size: 40, color: Colors.grey),
+                )
+              : const Icon(Icons.local_florist, size: 40, color: Colors.green),
         ),
-        title: Row(
-          children: [
-            const Icon(Icons.eco, color: Colors.green, size: 20),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                plant.name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-            ),
-          ],
+        title: Text(
+          widget.plant.name,
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (plant.dist != null && plant.dist!.isNotEmpty)
-              Text("Niveau eau : ${plant.dist}"),
-            Text("Humidité : ${plant.humidity ?? '--'}%"),
-            Text("Température : ${plant.temp ?? '--'}°C"),
-            Text("Ajoutée le : $formattedDate"),
-            if (plant.latitude != null && plant.longitude != null)
-              Text(
-                "📍 ${plant.latitude?.toStringAsFixed(4)}, ${plant.longitude?.toStringAsFixed(4)}",
-              ),
-          ],
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios),
-        onTap: onTap,
+        subtitle: subtitleWidget,
+        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+        onTap: widget.onTap,
       ),
     );
   }

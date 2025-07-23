@@ -3,6 +3,7 @@ class UserModel {
   final String name;
   final String email;
   final String? profileImageUrl;
+  ///thingspeak 
 
   UserModel({
     required this.id,

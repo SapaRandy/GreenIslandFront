@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:wifi_iot/wifi_iot.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DevicesScreen extends StatefulWidget {
   const DevicesScreen({super.key});
@@ -10,66 +12,81 @@ class DevicesScreen extends StatefulWidget {
 }
 
 class _DevicesScreenState extends State<DevicesScreen> {
-  List<WifiNetwork> availableDevices = [];
-  String? connectedDevice;
+  List<Map<String, dynamic>> availableDevices = [];
+  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadSavedDevice();
-    _scanWifi();
+    _loadDevicesFromBackend();
   }
 
-  Future<void> _loadSavedDevice() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      connectedDevice = prefs.getString('connected_device');
-    });
+  Future<void> _loadDevicesFromBackend() async {
+    setState(() => isLoading = true);
+    try {
+      final url = Uri.parse("https://greenislandback.onrender.com/arduino/connect");
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonList = jsonDecode(response.body);
+        List<Map<String, dynamic>> loadedDevices = [];
+
+        for (var deviceId in jsonList) {
+          if (deviceId is String) {
+              loadedDevices.add({
+                'id': deviceId,
+              });
+          }
+      }
+        setState(() {
+          availableDevices = loadedDevices;
+          isLoading = false;
+        });
+      } else {
+        throw Exception("Erreur ${response.statusCode} : ${response.body}");
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur lors du chargement : $e")),
+      );
+    }
   }
 
-  Future<void> _saveConnectedDevice(String ssid) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('connected_device', ssid);
-  }
+  Future<void> _connectToDevice(String deviceId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-  Future<void> _disconnectDevice() async {
-    await WiFiForIoTPlugin.disconnect();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('connected_device');
-    setState(() {
-      connectedDevice = null;
-    });
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Déconnecté de l’appareil')));
-  }
+    final url = Uri.parse("https://greenislandback.onrender.com/arduino/connect/");
 
-  Future<void> _scanWifi() async {
-    final list = await WiFiForIoTPlugin.loadWifiList();
-    setState(() {
-      availableDevices = list;
-    });
-  }
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "userId": user.uid,
+          "uniqueID": deviceId,
+        }),
+      );
 
-  Future<void> _connectToDevice(String ssid) async {
-    final success = await WiFiForIoTPlugin.connect(
-      ssid,
-      security: NetworkSecurity.NONE,
-    );
-    if (success) {
-      await _saveConnectedDevice(ssid);
-      setState(() {
-        connectedDevice = ssid;
-      });
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Connecté à $ssid')));
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Connexion à $ssid échouée')));
+
+      if (response.statusCode == 200) {
+        setState(() {
+          availableDevices.removeWhere((d) => d['id'] == deviceId);
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Appareil connecté avec succès.")),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur backend : ${response.body}")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur connexion : $e")),
+      );
     }
   }
 
@@ -77,78 +94,41 @@ class _DevicesScreenState extends State<DevicesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Appareils disponibles'),
+        title: const Text("Appareils disponibles"),
+        backgroundColor: Colors.green.shade700,
         actions: [
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _scanWifi),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: _loadDevicesFromBackend,
+          )
         ],
       ),
-      body: Column(
-        children: [
-          if (connectedDevice != null) _buildArroseurStatusCard(),
-          Expanded(
-            child: availableDevices.isEmpty
-                ? const Center(child: Text("Aucun appareil trouvé."))
-                : ListView.builder(
-                    itemCount: availableDevices.length,
-                    itemBuilder: (context, index) {
-                      final ap = availableDevices[index];
-                      final isConnected = connectedDevice == ap.ssid;
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        child: ListTile(
-                          leading: Icon(
-                            Icons.wifi,
-                            color: isConnected ? Colors.green : Colors.grey,
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : availableDevices.isEmpty
+              ? const Center(child: Text("Aucun appareil libre disponible."))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: availableDevices.length,
+                  itemBuilder: (context, index) {
+                    final device = availableDevices[index];
+                    return Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.devices, color: Colors.green),
+                        title: Text(device['id']),
+                        trailing: ElevatedButton.icon(
+                          onPressed: () => _connectToDevice(device['id']),
+                          icon: const Icon(Icons.link),
+                          label: const Text("Connecter"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green.shade700,
+                            foregroundColor: Colors.white,
                           ),
-                          title: Text(ap.ssid ?? ''),
-                          subtitle: Text(
-                            isConnected ? 'Connecté' : 'Non connecté',
-                          ),
-                          trailing: isConnected
-                              ? const Icon(
-                                  Icons.check_circle,
-                                  color: Colors.green,
-                                )
-                              : const Icon(
-                                  Icons.wifi_tethering_off,
-                                  color: Colors.red,
-                                ),
-                          onTap: ap.ssid != null
-                              ? () => _connectToDevice(ap.ssid!)
-                              : null,
                         ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildArroseurStatusCard() {
-    return Card(
-      margin: const EdgeInsets.all(16),
-      color: Colors.green.shade50,
-      elevation: 4,
-      child: ListTile(
-        leading: const Icon(Icons.grass, color: Colors.green, size: 36),
-        title: Text(
-          'Arroseur connecté : $connectedDevice',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: const Text('Prêt à être contrôlé à distance'),
-        trailing: IconButton(
-          icon: const Icon(Icons.power_settings_new, color: Colors.red),
-          onPressed: _disconnectDevice,
-          tooltip: 'Déconnecter',
-        ),
-      ),
+                      ),
+                    );
+                  },
+                ),
     );
   }
 }
-// This code defines a screen for managing Wi-Fi devices, allowing users to connect to and disconnect from available devices.
-// It uses the wifi_iot package to scan for Wi-Fi networks, connect to them, and save the connected device in shared preferences.

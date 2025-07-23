@@ -1,19 +1,37 @@
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
-import 'plant_detail_screen.dart';
-import 'add_plant_screen.dart';
-import 'sensor_screen.dart';
-import 'profile_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
+import 'plant_detail_screen.dart';
+import '../models/plant.dart';
+import '../models/plants_data.dart';
+import '../widgets/plant_card.dart';
+
+
+
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
-  void _addPlant(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const AddPlantScreen()),
-    );
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -21,132 +39,102 @@ class DashboardScreen extends StatelessWidget {
     final userId = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
+      backgroundColor: Colors.green.shade50,
       appBar: AppBar(
-        title: const Text("Mes Plantes"),
+        title: const Text("🌿 Mes Plantes"),
         backgroundColor: Colors.green,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('plants')
-            .where('userId', isEqualTo: userId)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final docs = snapshot.data?.docs ?? [];
-          if (docs.isEmpty) {
-            return const Center(child: Text("Aucune plante ajoutée."));
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final plant = docs[index].data() as Map<String, dynamic>;
-              final id = docs[index].id;
-
-              return _buildPlantCard(
-                context,
-                id: id,
-                name: plant['name'] ?? 'Nom inconnu',
-                dist: plant['dist'] ?? 'Non précisé',
-                humidity: plant['humidity'] ?? '--',
-                temp: plant['temp'] ?? '--',
-                imageUrl: plant['imageUrl'] ?? '',
-                createdAt: plant['createdAt'] as Timestamp?,
-              );
-            },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.green,
-        onPressed: () => _addPlant(context),
-        child: const Icon(Icons.add),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        selectedItemColor: Colors.green,
-        currentIndex: 0,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
-          BottomNavigationBarItem(icon: Icon(Icons.sensors), label: 'Capteurs'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
-        ],
-        onTap: (index) {
-          switch (index) {
-            case 1:
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SensorsScreen()),
-              );
-              break;
-            case 2:
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfileScreen()),
-              );
-              break;
-          }
-        },
-      ),
-    );
-  }
-
-  Widget _buildPlantCard(
-    BuildContext context, {
-    required String id,
-    required String name,
-    required String dist,
-    required String humidity,
-    required String temp,
-    required String imageUrl,
-    Timestamp? createdAt,
-  }) {
-    final date = createdAt != null
-        ? DateTime.fromMillisecondsSinceEpoch(createdAt.millisecondsSinceEpoch)
-        : null;
-
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.only(bottom: 16),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: imageUrl.isNotEmpty
-              ? Image.network(
-                  '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}',
-                  width: 60,
-                  height: 60,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, _, __) =>
-                      const Icon(Icons.image_not_supported),
-                )
-              : const Icon(Icons.image, size: 60),
-        ),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Niveau eau : $dist"),
-            Text("Humidité : $humidity"),
-            Text("Température : $temp"),
-            if (date != null)
-              Text("Ajoutée le : ${date.day}/${date.month}/${date.year}"),
-          ],
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) =>
-                  PlantDetailScreen(plantId: id, initialImageUrl: imageUrl),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: TextField(
+              controller: _searchController,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: "Rechercher une plante...",
+                border: OutlineInputBorder(),
+              ),
             ),
-          );
-        },
+          ),
+
+          // ✅ Graphique des soins
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+          ),
+
+          // 🌿 Liste dynamique des plantes
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('plants')
+                  .where('uid', isEqualTo: userId)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return const Center(child: Text("Erreur de chargement"));
+                }
+
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final plantDocs = snapshot.data?.docs ?? [];
+                final filteredDocs = plantDocs.where((doc) {
+                  final name = (doc['name'] ?? '').toString().toLowerCase();
+                  return name.contains(_searchQuery);
+                }).toList();
+
+                if (filteredDocs.isEmpty) {
+                  return const Center(child: Text("Aucune plante trouvée."));
+                }
+
+                return ListView.builder(
+                  itemCount: plantDocs.length,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemBuilder: (context, index) {
+                    final data = plantDocs[index].data() as Map<String, dynamic>;
+                    final plant = Plant.fromMap(data, plantDocs[index].id);
+
+                    return FutureBuilder<DocumentSnapshot>(
+                      future: FirebaseFirestore.instance
+                          .collection('plant_data')
+                          .doc(plant.name.toLowerCase().trim()) // nom = clé
+                          .get(),
+                      builder: (context, snapshot) {
+                        PlantData? enriched;
+
+                        if (snapshot.connectionState == ConnectionState.done &&
+                            snapshot.hasData &&
+                            snapshot.data!.exists) {
+                          final docData = snapshot.data!.data() as Map<String, dynamic>;
+                          enriched = PlantData.fromJson(docData);
+                        }
+
+                        return PlantCard(
+                          plant: plant,
+                          enrichedDetails: enriched,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PlantDetailScreen(
+                                  plant: plant,
+                                  plantId: plant.id,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                );
+
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
