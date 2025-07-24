@@ -73,18 +73,19 @@ Map<String, dynamic> details = {};
           final infoUri = Uri.parse('https://greenislandback.onrender.com/plantid/infos/?name=$name');
           final infoResponse = await http.get(infoUri);
 
-          Map<String, dynamic> details = {};
+          
           if (infoResponse.statusCode == 200) {
             final infoData = jsonDecode(infoResponse.body);
-            details = infoData['details'] ?? {};
-          }
+            final plantId = infoData['name'];
+          
 
-          setState(() {
-            _foundPlantData = {
-              'name': name,
-              'details': details,
-            };
-          });
+            setState(() {
+              _foundPlantData = {
+                'name': name,
+                'plantId': plantId,
+              };
+            });
+          }
 
           Fluttertoast.showToast(msg: "Plante reconnue : $name");
         } else {
@@ -117,11 +118,11 @@ Map<String, dynamic> details = {};
       }
 
       final infoData = jsonDecode(infoResponse.body);
-      final details = infoData['details'] ?? {};
+      final plantId = infoData['name'] ?? {};
 
       setState(() => _foundPlantData = {
         'name': queryLower,
-        'details': details,
+        'plantId': plantId,
       });
 
       Fluttertoast.showToast(msg: "Plante trouvée : $queryLower");
@@ -139,7 +140,7 @@ Map<String, dynamic> details = {};
       Fluttertoast.showToast(msg: "Impossible d’enregistrer. Plante non identifiée.");
       return;
     }
-
+    final plantId = _foundPlantData!['plantId'] ?? '';
     setState(() => _isLoading = true);
     String? imageUrl;
 
@@ -170,6 +171,7 @@ Map<String, dynamic> details = {};
         ..._foundPlantData!,
         'uid': uid,
         'name': _nameController.text.trim(),
+        'plantId': plantId,
         'imageUrl': imageUrl ?? _foundPlantData!['imageUrl'] ?? '',
         'addedAt': FieldValue.serverTimestamp(),
         'isOutdoor': _isOutdoor,
@@ -180,28 +182,6 @@ Map<String, dynamic> details = {};
       };
 
       await FirebaseFirestore.instance.collection('plants').add(plantData);
-
-      final plantNameLower = _nameController.text.trim().toLowerCase();
-      if (plantNameLower.isNotEmpty) {
-        final query = await FirebaseFirestore.instance
-            .collection('plants_data')
-            .where('name', isEqualTo: plantNameLower)
-            .limit(1)
-            .get();
-
-        final details = _foundPlantData!['details'] ?? {};
-
-        if (query.docs.isEmpty) {
-          await FirebaseFirestore.instance.collection('plants_data').add({
-            'name': plantNameLower,
-            'details': details,
-          });
-        } else {
-          await query.docs.first.reference.set({
-            'details': details,
-          }, SetOptions(merge: true));
-        }
-      }
 
       if (!mounted) return;
       Fluttertoast.showToast(msg: "Plante enregistrée avec succès !");
@@ -269,7 +249,6 @@ Map<String, dynamic> details = {};
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     Text("Nom : ${_foundPlantData!['name'] ?? '-'}"),
-                    Text("Détails : ${_foundPlantData!['details'] ?? '-'}"),
                     if (_foundPlantData!['imageUrl'] != null)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),

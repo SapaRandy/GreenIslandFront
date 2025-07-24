@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -110,6 +111,7 @@ class _PlantCardState extends State<PlantCard> {
           widget.plant.name,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
+
         subtitle: subtitleWidget,
         trailing: const Icon(Icons.arrow_forward_ios, size: 16),
         onTap: widget.onTap,

@@ -82,7 +82,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final response = await http.delete(
         url,
-        headers: {"Content-Type": "application/json"}, 
+        headers: {"Content-Type": "application/json"},
       );
 
       if (response.statusCode == 200) {
@@ -97,7 +97,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
     
-
   Future<void> _connectToDevice(String deviceId) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;

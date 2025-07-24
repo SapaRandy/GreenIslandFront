@@ -57,6 +57,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
+
     final url = Uri.parse("https://greenislandback.onrender.com/arduino/connect/");
 
     try {
@@ -68,6 +69,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
           "uniqueID": deviceId,
         }),
       );
+
 
 
       if (response.statusCode == 200) {
