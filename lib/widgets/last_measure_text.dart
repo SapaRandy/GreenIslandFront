@@ -45,11 +45,11 @@ class LastMeasureText extends StatelessWidget {
         final eau = (data['niveau_eau'] is num)
             ? (data['niveau_eau'] as num).toStringAsFixed(1)
             : 'N/A';
-        final hum = (data['humidite'] is num)
-            ? (data['humidite'] as num).toStringAsFixed(1)
+        final hum = (data['sol'] is num)
+            ? (data['sol'] as num).toStringAsFixed(1)
             : 'N/A';
 
-        return Text("💧 Eau : $eau cm • 🌡️ Temp : $temp °C • 💦 Hum : $hum%");
+        return Text("💧 Eau : $eau cm • 🌡️ Temp : $temp °C • 💦 Hum : $hum%" );
       },
     );
   }
